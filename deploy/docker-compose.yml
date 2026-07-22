@@ -10,7 +10,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U llsollu"]
+      test: ["CMD-SHELL", "pg_isready -U llsollu -d llsollu_email_agent"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -24,6 +24,10 @@ services:
   api:
     build: ../backend
     env_file: ../backend/.env
+    # 컨테이너 시계를 KST로 맞춰 로그 타임스탬프가 SCHEDULER_TZ(Asia/Seoul)와 일치하도록.
+    # 스케줄 계산/저장은 코드에서 명시적 tz(ZoneInfo)로 처리하므로 이 값과 무관하게 정확함.
+    environment:
+      TZ: Asia/Seoul
     ports:
       - "8000:8000"
     depends_on:
@@ -39,6 +43,8 @@ services:
   worker:
     build: ../backend
     env_file: ../backend/.env
+    environment:
+      TZ: Asia/Seoul
     depends_on:
       postgres:
         condition: service_healthy

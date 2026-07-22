@@ -77,7 +77,7 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
                     Card(
                       child: SwitchListTile(
                         title: const Text('스케줄 활성화'),
-                        subtitle: Text('다음 실행: ${data.schedule!['next_run_at'] ?? '-'}'),
+                        subtitle: Text('다음 실행: ${_fmtKst(data.schedule!['next_run_at'])}'),
                         value: data.schedule!['enabled'] == true,
                         onChanged: (v) async {
                           await ref.read(apiProvider).toggleSchedule(widget.agent.id, v);
@@ -138,6 +138,18 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
       ),
     );
   }
+}
+
+/// 서버가 내려주는 next_run_at(UTC ISO8601)을 KST(+9)로 변환해 표시.
+/// 저장/계산은 UTC 기준이지만 사용자에게는 한국시간으로 보여야 오해가 없다.
+String _fmtKst(Object? iso) {
+  if (iso == null) return '-';
+  final dt = DateTime.tryParse(iso.toString());
+  if (dt == null) return iso.toString();
+  final k = dt.toUtc().add(const Duration(hours: 9));
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${k.year}-${two(k.month)}-${two(k.day)} '
+      '${two(k.hour)}:${two(k.minute)} (KST)';
 }
 
 class _PanelData {
