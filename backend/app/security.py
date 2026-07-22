@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import ipaddress
+import os
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Request
@@ -73,3 +76,26 @@ def decode_session_token(token: str) -> dict | None:
         return jwt.decode(token, settings.jwt_secret, algorithms=[ALGO])
     except JWTError:
         return None
+
+
+# ── 비밀번호 해싱(표준 라이브러리 PBKDF2, 외부 의존성 없음) ──
+_PBKDF2_ITERS = 200_000
+
+
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PBKDF2_ITERS)
+    return f"pbkdf2_sha256${_PBKDF2_ITERS}${salt.hex()}${dk.hex()}"
+
+
+def verify_password(password: str, stored: str | None) -> bool:
+    if not stored:
+        return False
+    try:
+        algo, iters, salt_hex, hash_hex = stored.split("$")
+        if algo != "pbkdf2_sha256":
+            return False
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), int(iters))
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(dk.hex(), hash_hex)

@@ -21,10 +21,26 @@ class ApiClient {
     return null;
   }
 
-  Future<UserInfo> login(String email) async {
-    final r = await _dio.post('/auth/login', data: {'email': email});
+  /// 이메일 상태 확인: 'existing' | 'needs_setup' | 'not_company'
+  Future<String> checkEmail(String email) async {
+    final r = await _dio.post('/auth/check-email', data: {'email': email});
+    if (r.statusCode == 200) return r.data['status'] as String;
+    throw Exception(r.data['detail'] ?? '확인 실패');
+  }
+
+  Future<UserInfo> login(String email, String password, bool remember) async {
+    final r = await _dio.post('/auth/login',
+        data: {'email': email, 'password': password, 'remember': remember});
     if (r.statusCode == 200) return UserInfo.fromJson(r.data);
     throw Exception(r.data['detail'] ?? '로그인 실패');
+  }
+
+  /// 사내 계정 최초 비밀번호 설정 후 로그인.
+  Future<UserInfo> register(String email, String password, bool remember) async {
+    final r = await _dio.post('/auth/register',
+        data: {'email': email, 'password': password, 'remember': remember});
+    if (r.statusCode == 200) return UserInfo.fromJson(r.data);
+    throw Exception(r.data['detail'] ?? '가입 실패');
   }
 
   Future<void> logout() => _dio.post('/auth/logout');

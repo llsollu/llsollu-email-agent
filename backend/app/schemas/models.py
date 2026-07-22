@@ -8,6 +8,24 @@ from pydantic import BaseModel, EmailStr
 
 class LoginRequest(BaseModel):
     email: EmailStr
+    password: str
+    remember: bool = True
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    remember: bool = True
+
+
+class CheckEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class CheckEmailResponse(BaseModel):
+    # existing: DB에 있음(비번 확인 필요) / needs_setup: 사내 계정이나 미가입(비번 설정) / not_company: 회사 계정 아님
+    status: str
+    display_name: str | None = None
 
 
 class UserOut(BaseModel):

@@ -37,6 +37,24 @@ class GraphClient:
     async def _headers(self) -> dict:
         return {"Authorization": f"Bearer {await self._get_token()}"}
 
+    async def find_user(self, email: str) -> dict | None:
+        """사내 사용자(Teams/Entra 계정) 존재 확인.
+
+        이 앱 자격증명은 디렉터리 읽기(User.Read.All)가 없고 전 사서함 Mail 권한만 있으므로,
+        사서함(Inbox) 접근 가능 여부로 실제 계정을 판별한다.
+        존재하면 200(→dict 반환), 없으면 404/ErrorInvalidUser(→None)."""
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(
+                f"{_GRAPH}/users/{email}/mailFolders/Inbox",
+                headers=await self._headers(),
+            )
+            if r.status_code == 200:
+                return {"mail": email}
+            if r.status_code == 404:
+                return None
+            r.raise_for_status()
+            return None
+
     async def list_messages(self, mailbox: str, since_iso: str | None = None, top: int = 25) -> list[dict]:
         params = {"$top": str(top), "$orderby": "receivedDateTime desc",
                   "$select": "id,subject,from,toRecipients,ccRecipients,receivedDateTime,bodyPreview,body,hasAttachments,importance"}

@@ -12,6 +12,8 @@ class User(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
+    # PBKDF2 해시 문자열(pbkdf2_sha256$iter$salt$hash). 최초 비밀번호 설정 전에는 NULL.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
     display_name: Mapped[str | None] = mapped_column(String(200))
     azure_oid: Mapped[str | None] = mapped_column(String(100), unique=True)
     department: Mapped[str | None] = mapped_column(String(120))
