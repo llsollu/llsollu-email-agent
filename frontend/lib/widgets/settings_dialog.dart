@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../state/providers.dart';
 import 'config_form.dart';
+import 'mail_scheduler_form.dart';
 
 /// ⚙️ 설정: 생성 시 설정을 열람·수정. 모든 뷰 공용.
 /// 저장 시 true 반환.
@@ -41,13 +42,17 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
   }
 
   Future<void> _save() async {
+    await _saveDirect(_nameController.text.trim(), _config, _secrets);
+  }
+
+  Future<void> _saveDirect(String name, Map<String, dynamic> config, Map<String, dynamic> secrets) async {
     setState(() => _busy = true);
     try {
       await ref.read(apiProvider).updateAgent(
             widget.agent.id,
-            name: _nameController.text.trim(),
-            config: _config,
-            secrets: _secrets,
+            name: name,
+            config: config,
+            secrets: secrets,
           );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -78,6 +83,7 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isMailScheduler = widget.agent.templateKey == 'mail_scheduler';
     return AlertDialog(
       title: Row(
         children: [
@@ -92,33 +98,46 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
         ],
       ),
       content: SizedBox(
-        width: 480,
-        child: _schema == null
-            ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
-            : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
+        width: 560,
+        height: isMailScheduler ? 560 : null,
+        child: isMailScheduler
+            ? MailSchedulerForm(
+                initialName: widget.agent.name,
+                initialConfig: widget.agent.config,
+                wizard: false,
+                busy: _busy,
+                submitLabel: '저장',
+                onSubmit: (name, config) => _saveDirect(name, config, const {}),
+              )
+            : _schema == null
+                ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
+                : SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _nameController,
+                          decoration:
+                              const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
+                        ),
+                        ConfigForm(
+                          fields: _schema!,
+                          initialConfig: widget.agent.config,
+                          onChanged: (c, s) {
+                            _config = c;
+                            _secrets = s;
+                          },
+                        ),
+                      ],
                     ),
-                    ConfigForm(
-                      fields: _schema!,
-                      initialConfig: widget.agent.config,
-                      onChanged: (c, s) {
-                        _config = c;
-                        _secrets = s;
-                      },
-                    ),
-                  ],
-                ),
-              ),
+                  ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('저장')),
-      ],
+      actions: isMailScheduler
+          ? [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('닫기'))]
+          : [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+              FilledButton(onPressed: _busy ? null : _save, child: const Text('저장')),
+            ],
     );
   }
 }

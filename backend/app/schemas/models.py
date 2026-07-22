@@ -28,6 +28,16 @@ class CheckEmailResponse(BaseModel):
     display_name: str | None = None
 
 
+class ColumnsPreviewRequest(BaseModel):
+    file_url: str
+
+
+class ColumnsPreviewResponse(BaseModel):
+    columns: list[str]
+    sample: dict[str, str] = {}
+    row_count: int = 0
+
+
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str

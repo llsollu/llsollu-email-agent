@@ -47,6 +47,17 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
           agent: widget.agent,
           onChanged: widget.onChanged,
           actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('지금 실행(드라이런)'),
+              onPressed: () async {
+                await ref.read(apiProvider).runNow(widget.agent.id, dryRun: true);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('드라이런 실행을 큐에 넣었습니다 (최신 메일 1건 분류, 저장 안 함)')));
+                }
+              },
+            ),
             IconButton(
               tooltip: '새로고침',
               icon: const Icon(Icons.refresh),

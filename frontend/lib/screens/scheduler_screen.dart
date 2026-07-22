@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/models.dart';
 import '../state/providers.dart';
+import '../widgets/schedule_util.dart';
 import '../widgets/view_header.dart';
 
 /// T2 뷰: 트리거·규칙·참조파일·최근 로그 + 스케줄 on/off.
@@ -66,18 +67,24 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   _section('트리거 / 규칙', [
-                    _kv('실행 스케줄(cron)', cfg['cron'] ?? '(기본)'),
+                    _kv('확인 주기', humanFromCron(cfg['cron']?.toString())),
                     _kv('참조 파일 URL', cfg['sharepoint_file_url'] ?? '-'),
-                    _kv('발신 계정', cfg['mail_sender'] ?? '-'),
+                    _kv('발신자', cfg['mail_sender'] ?? '-'),
                     _kv('수신자', cfg['recipient_email'] ?? '-'),
-                    _kv('누락 알림', cfg['alert_email'] ?? '-'),
+                    _kv('발송기준일',
+                        (cfg['date_column']?.toString().isNotEmpty ?? false)
+                            ? cfg['date_column']
+                            : '지정 안 함 (주기마다 전체 발송)'),
                   ]),
                   const SizedBox(height: 12),
                   if (data.schedule != null)
                     Card(
                       child: SwitchListTile(
                         title: const Text('스케줄 활성화'),
-                        subtitle: Text('다음 실행: ${_fmtKst(data.schedule!['next_run_at'])}'),
+                        subtitle: Text(
+                            '확인 주기: ${humanFromCron(cfg['cron']?.toString())}\n'
+                            '다음 실행: ${_fmtKst(data.schedule!['next_run_at'])}'),
+                        isThreeLine: true,
                         value: data.schedule!['enabled'] == true,
                         onChanged: (v) async {
                           await ref.read(apiProvider).toggleSchedule(widget.agent.id, v);
@@ -124,17 +131,59 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
         ),
       );
 
+  static const _triggerLabel = {'schedule': '예약 실행', 'manual': '수동 실행', 'email': '메일 수신'};
+  static const _statusLabel = {'ok': '성공', 'error': '오류', 'running': '실행 중'};
+
   Widget _runTile(RunInfo r) {
     final color = r.status == 'ok'
         ? Colors.green
         : r.status == 'error'
             ? Colors.red
             : Colors.orange;
+    final s = r.stats;
+    final isDry = s['dry_run'] == true;
+    final total = s['total'], targets = s['targets'], sent = s['sent'], failed = s['failed'];
+
+    final parts = <String>[];
+    if (total != null) parts.add('총 $total건');
+    if (targets != null) parts.add('발송 대상 $targets건');
+    if (isDry) {
+      parts.add('드라이런(실제 발송 안 함)');
+    } else {
+      if (sent != null) parts.add('발송 $sent건');
+      if (failed != null && failed != 0) parts.add('실패 $failed건');
+    }
+    final summary = parts.isEmpty ? '기록 없음' : parts.join(' · ');
+
+    // 이벤트 중 실패/드라이런 상세를 사람이 읽는 문장으로.
+    final details = <String>[];
+    final events = (s['events'] as List?) ?? [];
+    for (final e in events.whereType<Map>()) {
+      switch (e['event']) {
+        case 'send_failed':
+          details.add('· 발송 실패 (${e['to']}): ${e['error']}');
+          break;
+        case 'dry_run':
+          details.add('· [미리보기] 제목: ${e['subject']}');
+          break;
+      }
+    }
+
     return Card(
       child: ListTile(
         leading: Icon(Icons.circle, color: color, size: 14),
-        title: Text('${r.triggerSource} · ${r.status}'),
-        subtitle: Text(r.error ?? r.stats.toString(), maxLines: 2, overflow: TextOverflow.ellipsis),
+        title: Text('${_triggerLabel[r.triggerSource] ?? r.triggerSource} · '
+            '${_statusLabel[r.status] ?? r.status}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(summary),
+            if (r.error != null)
+              Text('오류: ${r.error}', style: const TextStyle(color: Colors.red)),
+            for (final d in details.take(5))
+              Text(d, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        ),
       ),
     );
   }

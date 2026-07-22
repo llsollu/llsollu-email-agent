@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../state/providers.dart';
 import '../widgets/config_form.dart';
+import '../widgets/mail_scheduler_form.dart';
 
 /// 템플릿 선택 → 설정 입력 → 생성('구성 중…' 은 목록의 상태로 표시).
 class AddAgentScreen extends ConsumerStatefulWidget {
@@ -30,10 +31,13 @@ class _AddAgentScreenState extends ConsumerState<AddAgentScreen> {
   }
 
   Future<void> _create() async {
+    await _createWith(_nameController.text.trim(), _config, _secrets);
+  }
+
+  Future<void> _createWith(String name, Map<String, dynamic> config, Map<String, dynamic> secrets) async {
     setState(() => _busy = true);
     try {
-      await ref.read(apiProvider).createAgent(
-            _template!.key, _nameController.text.trim(), _config, _secrets);
+      await ref.read(apiProvider).createAgent(_template!.key, name, config, secrets);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -75,6 +79,25 @@ class _AddAgentScreenState extends ConsumerState<AddAgentScreen> {
   }
 
   Widget _configStep() {
+    // 메일 스케줄러는 전용 2단계 마법사 사용
+    if (_template!.key == 'mail_scheduler') {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: MailSchedulerForm(
+              initialName: _template!.name,
+              initialConfig: const {},
+              wizard: true,
+              busy: _busy,
+              submitLabel: '생성',
+              onSubmit: (name, config) => _createWith(name, config, const {}),
+            ),
+          ),
+        ),
+      );
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: ConstrainedBox(

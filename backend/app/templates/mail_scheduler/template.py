@@ -1,8 +1,9 @@
-"""T2: 메일 자동 발송 스케줄링. 기존 mailing 프로젝트를 프레임워크로 이식.
+"""T2: 메일 자동 발송 스케줄링 (범용).
 
-트리거는 schedule — scheduler 디스패처가 cron 도래 시 run 을 투입.
-handle()은 참조 xlsx를 Graph로 내려받아 오늘 발행 대상 행을 선별, 본문을 만들어 발송하거나
-필수 데이터 누락 시 관리자에게 알림 발송.
+사용자가 지정한 참조 파일(xlsx)의 각 행을, 사용자가 작성한 제목/본문 템플릿
+({{컬럼명}} 치환)으로 만들어 수신자에게 발송한다.
+- 발송기준일(date_column) 지정 시: 그 컬럼 값이 오늘과 매칭되는 행만 발송.
+- 미지정 시: 확인 주기(cron)마다 모든 행 발송.
 """
 
 from __future__ import annotations
@@ -16,30 +17,29 @@ from app.framework.context import RunContext, RunResult, SetupContext
 from app.models import SentRecord
 from app.templates.mail_scheduler import email_builder as eb
 from app.templates.mail_scheduler.schedule_matcher import is_scheduled_today
-from app.templates.mail_scheduler.xlsx import parse_invoice_rows
+from app.templates.mail_scheduler.xlsx import parse_table
 
 
 class MailSchedulerTemplate(BaseTemplate):
     key = "mail_scheduler"
     name = "메일 자동 발송 스케줄링"
-    version = "0.1.0"
-    description = "참조 파일과 규칙 기반으로 정해진 시각에 메일을 자동 발송하고 로그/온오프로 관리"
+    version = "0.2.0"
+    description = "참조 파일의 데이터를 사용자가 만든 제목/본문 템플릿으로 정해진 주기에 자동 발송"
     trigger = TriggerSpec(kind="schedule", detail={"default_cron": "0 9 * * *"})
     view = ViewSpec(view_type="scheduler_panel",
                     data_endpoints=["/agents/{id}", "/agents/{id}/runs", "/agents/{id}/schedule"])
 
     def config_schema(self) -> list[ConfigField]:
+        # 전용 2단계 마법사(프론트)에서 입력하지만, 설정 검증/폴백용으로 스키마도 유지.
         return [
-            ConfigField("sharepoint_file_url", "참조 파일 URL", "url", required=True,
-                        help="발행 일정표 xlsx 의 SharePoint 공유 링크"),
-            ConfigField("mail_sender", "발신 계정", "email", required=True,
-                        help="Graph sendMail 로 보낼 발신 메일박스"),
+            ConfigField("sharepoint_file_url", "참조 파일 URL", "url", required=True),
+            ConfigField("mail_sender", "발신자 이메일", "email", required=True),
             ConfigField("recipient_email", "수신자 이메일", "email", required=True),
-            ConfigField("recipient_name", "수신자 표시명", "string", required=False, default="담당자님"),
-            ConfigField("alert_email", "누락 알림 수신 이메일", "email", required=False,
-                        help="필수 데이터 누락 시 알림을 받을 주소"),
-            ConfigField("cron", "실행 스케줄(cron)", "cron", required=False, default="0 9 * * *",
-                        help="매일 09시 = '0 9 * * *'"),
+            ConfigField("date_column", "발송기준일(컬럼명)", "string", required=False,
+                        help="비우면 확인 주기마다 전체 발송"),
+            ConfigField("cron", "확인 주기(cron)", "cron", required=False, default="0 9 * * *"),
+            ConfigField("subject_template", "메일 제목", "string", required=False),
+            ConfigField("body_template", "메일 작성 내용", "text", required=False),
         ]
 
     async def on_setup(self, ctx: SetupContext) -> None:
@@ -49,50 +49,45 @@ class MailSchedulerTemplate(BaseTemplate):
 
     async def handle(self, ctx: RunContext) -> RunResult:
         cfg = ctx.config
-        recipient_name = cfg.get("recipient_name") or "담당자님"
-        alert_email = cfg.get("alert_email") or cfg["recipient_email"]
+        recipient = cfg["recipient_email"]
+        sender = cfg["mail_sender"]
+        date_column = (cfg.get("date_column") or "").strip()
+        subject_tmpl = cfg.get("subject_template") or ""
+        body_tmpl = cfg.get("body_template") or ""
 
         today = datetime.now(ZoneInfo(settings.scheduler_tz)).date()
 
         data = await ctx.graph.download_shared_file(cfg["sharepoint_file_url"])
-        rows = parse_invoice_rows(data, today.month)
-        targets = [r for r in rows if is_scheduled_today(r.schedule_pattern, today)]
-        ctx.log("parsed", total=len(rows), targets=len(targets))
+        columns, rows = parse_table(data)
 
-        sent = skipped = failed = 0
+        if date_column:
+            targets = [r for r in rows if is_scheduled_today(r.get(date_column), today)]
+        else:
+            targets = rows
+        ctx.log("parsed", total=len(rows), targets=len(targets), by_date=bool(date_column))
+
+        sent = failed = 0
         for row in targets:
-            missing = eb.missing_fields(row)
-            has_missing = bool(missing)
-            to = alert_email if has_missing else cfg["recipient_email"]
-            subject = eb.build_subject(row, today, has_missing)
-            body = eb.build_body(row, today, recipient_name)
-            if has_missing:
-                body = f"{eb.build_missing_notice(recipient_name)}\n\n{body}"
+            subject = eb.render(subject_tmpl, row, today).strip() or "(제목 없음)"
+            body = eb.render(body_tmpl, row, today)
 
             if ctx.dry_run:
-                ctx.log("dry_run", to=to, subject=subject, missing=missing)
-                skipped += 1
+                ctx.log("dry_run", to=recipient, subject=subject)
                 continue
 
             try:
-                await ctx.graph.send_mail(cfg["mail_sender"], to, subject, body)
-                status = "skipped" if has_missing else "sent"
-                if has_missing:
-                    skipped += 1
-                else:
-                    sent += 1
-                ctx.db.add(SentRecord(
-                    agent_id=ctx.agent_id, target=to, subject=subject, status=status,
-                    detail=("누락: " + ", ".join(missing)) if has_missing else None,
-                ))
+                await ctx.graph.send_mail(sender, recipient, subject, body)
+                sent += 1
+                ctx.db.add(SentRecord(agent_id=ctx.agent_id, target=recipient,
+                                      subject=subject, status="sent"))
             except Exception as e:  # noqa: BLE001
                 failed += 1
-                ctx.db.add(SentRecord(
-                    agent_id=ctx.agent_id, target=to, subject=subject, status="failed", detail=str(e)))
-                ctx.log("send_failed", to=to, error=str(e))
+                ctx.db.add(SentRecord(agent_id=ctx.agent_id, target=recipient,
+                                      subject=subject, status="failed", detail=str(e)))
+                ctx.log("send_failed", to=recipient, error=str(e))
 
         await ctx.db.commit()
         return RunResult(ok=failed == 0, stats={
             "total": len(rows), "targets": len(targets),
-            "sent": sent, "skipped": skipped, "failed": failed,
+            "sent": sent, "failed": failed, "dry_run": ctx.dry_run,
         })

@@ -45,6 +45,13 @@ class ApiClient {
 
   Future<void> logout() => _dio.post('/auth/logout');
 
+  /// 참조 파일(xlsx)의 컬럼명 + 첫 행 샘플 미리보기 (메일 스케줄러 2단계용).
+  Future<Map<String, dynamic>> mailSchedulerColumns(String fileUrl) async {
+    final r = await _dio.post('/templates/mail_scheduler/columns', data: {'file_url': fileUrl});
+    if (r.statusCode == 200) return Map<String, dynamic>.from(r.data);
+    throw Exception(r.data['detail'] ?? '컬럼을 불러오지 못했습니다');
+  }
+
   Future<List<TemplateInfo>> templates() async {
     final r = await _dio.get('/templates');
     return (r.data as List).map((e) => TemplateInfo.fromJson(e)).toList();

@@ -1,95 +1,74 @@
-"""세금계산서 발행 일정표 xlsx 파싱. 기존 mailing/src/xlsxParser.ts 를 이식.
+"""범용 xlsx 파서.
 
-연도별 섹션이 반복(각 섹션마다 헤더 + 소계/합계 행)되는 표. 헤더 행을 만날 때마다
-컬럼 매핑을 다시 잡고, 소계/합계 행은 건너뛴다. 병합 셀(사업구분/거래처)은 위 값을 이어받는다.
+특정 양식에 종속되지 않도록, 첫 시트에서 '헤더 행'을 자동으로 찾아
+(컬럼명 목록, 각 행을 {컬럼명: 값} 으로 담은 dict 목록)을 돌려준다.
+
+헤더 추정: 상단 일부 행 중 '비어 있지 않은 셀이 가장 많은' 행을 헤더로 본다.
+값은 사람이 읽는 문자열로 정규화(정수는 소수점 제거, 날짜는 YYYY-MM-DD)한다.
 """
 
 from __future__ import annotations
 
+import datetime as _dt
 import io
-from dataclasses import dataclass
 
 from openpyxl import load_workbook
 
-HEADER_MARKERS = ("거래처", "발행 예정일")
-MONTH_HEADERS = ["1월", "2월", "3월", "4월", "5월", "6월",
-                 "7월", "8월", "9월", "10월", "11월", "12월"]
-STOP_MARKERS = ("소계", "합계")
+_HEADER_SCAN_ROWS = 15
 
 
-@dataclass
-class InvoiceRow:
-    business_type: str
-    client_name: str
-    maintenance_detail: str
-    issue_status: str
-    schedule_pattern: str
-    ceo_name: str
-    contact_name: str
-    contact_email: str
-    contact_phone: str
-    sales_type: str
-    monthly_amount: int | None
+def _fmt(v) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "예" if v else "아니오"
+    if isinstance(v, _dt.datetime):
+        return v.date().isoformat() if v.time() == _dt.time(0, 0) else v.isoformat(sep=" ")
+    if isinstance(v, _dt.date):
+        return v.isoformat()
+    if isinstance(v, float):
+        return str(int(v)) if v.is_integer() else str(v)
+    return str(v).strip()
 
 
-def _norm(v) -> str:
-    return "" if v is None else str(v).strip()
-
-
-def parse_invoice_rows(data: bytes, target_month: int) -> list[InvoiceRow]:
+def parse_table(data: bytes) -> tuple[list[str], list[dict[str, str]]]:
+    """(헤더 컬럼명 목록, 데이터 행 dict 목록) 반환."""
     wb = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
     ws = wb[wb.sheetnames[0]]
 
-    results: list[InvoiceRow] = []
-    header_cols: dict[str, int] | None = None
-    last_business = ""
-    last_client = ""
+    rows = [list(r) for r in ws.iter_rows(values_only=True)]
+    if not rows:
+        return [], []
 
-    for row in ws.iter_rows(values_only=True):
-        cells = [_norm(c) for c in row]
+    # 상단 스캔 구간에서 비어있지 않은 셀이 가장 많은 행을 헤더로.
+    best_idx, best_count = 0, -1
+    for i, r in enumerate(rows[:_HEADER_SCAN_ROWS]):
+        count = sum(1 for c in r if _fmt(c))
+        if count > best_count:
+            best_idx, best_count = i, count
+    if best_count < 1:
+        return [], []
 
-        if all(m in cells for m in HEADER_MARKERS):
-            header_cols = {c: i for i, c in enumerate(cells) if c}
-            last_business = ""
-            last_client = ""
+    header_cells = [_fmt(c) for c in rows[best_idx]]
+    # 빈 컬럼명은 건너뛰고, 중복은 접미사로 구분.
+    columns: list[str] = []
+    col_index: list[int] = []
+    seen: dict[str, int] = {}
+    for idx, name in enumerate(header_cells):
+        if not name:
             continue
-        if not header_cols:
-            continue
+        if name in seen:
+            seen[name] += 1
+            name = f"{name} ({seen[name]})"
+        else:
+            seen[name] = 1
+        columns.append(name)
+        col_index.append(idx)
 
-        def get(name: str) -> str:
-            idx = header_cols.get(name)
-            if idx is None or idx >= len(cells):
-                return ""
-            return cells[idx]
-
-        client_raw = get("거래처")
-        business_raw = get("사업 구분")
-        if client_raw in STOP_MARKERS or business_raw in STOP_MARKERS:
-            continue
-
-        business = business_raw or last_business
-        client = client_raw or last_client
-        last_business, last_client = business, client
-
-        detail = get("유지보수 내역")
-        if not client or not detail:
-            continue
-
-        month_col = MONTH_HEADERS[target_month - 1]
-        raw_amount = get(month_col)
-        amount = round(float(raw_amount)) if raw_amount else None
-
-        results.append(InvoiceRow(
-            business_type=business,
-            client_name=client,
-            maintenance_detail=detail,
-            issue_status=get("발행 상태"),
-            schedule_pattern=get("발행 예정일"),
-            ceo_name=get("대표자"),
-            contact_name=get("발행담당자명"),
-            contact_email=get("발행담당자이메일"),
-            contact_phone=get("발행담당자연락처"),
-            sales_type=get("매출형태"),
-            monthly_amount=amount,
-        ))
-    return results
+    data_rows: list[dict[str, str]] = []
+    for r in rows[best_idx + 1:]:
+        cells = [_fmt(c) for c in r]
+        row = {columns[j]: (cells[idx] if idx < len(cells) else "") for j, idx in enumerate(col_index)}
+        if any(v for v in row.values()):  # 완전 빈 행 제외
+            data_rows.append(row)
+    return columns, data_rows

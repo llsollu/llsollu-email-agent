@@ -40,7 +40,16 @@ class ProjectTrackerTemplate(BaseTemplate):
         # Graph 미구성 환경에서는 검증 생략(폴링/webhook은 ingestion 담당)
 
     async def handle(self, ctx: RunContext) -> RunResult:
-        email = ctx.trigger_payload
+        email = {k: v for k, v in (ctx.trigger_payload or {}).items() if k != "dry_run"}
+
+        # 수동 실행/드라이런: 트리거 메일이 없으면 대상 메일함의 최신 메일 1건을 가져와 미리 분류.
+        if not email and ctx.trigger_source == "manual":
+            mailbox = ctx.config.get("mailbox")
+            if mailbox:
+                msgs = await ctx.graph.list_messages(mailbox, top=1)
+                if msgs:
+                    email = msgs[0]
+                    ctx.log("manual_fetch", mailbox=mailbox)
         if not email:
             return RunResult(ok=True, message="처리할 메일 없음", stats={"processed": 0})
 
@@ -62,6 +71,14 @@ class ProjectTrackerTemplate(BaseTemplate):
         project_title = cls.get("project_title")
         summary = cls.get("summary") or ""
         ctx.log("classified", client=client_name, project=project_title)
+
+        # 드라이런: 분류 결과만 확인하고 DB에는 반영하지 않음.
+        if ctx.dry_run:
+            ctx.log("dry_run", subject=subject, client=client_name, project=project_title, summary=summary)
+            return RunResult(ok=True, stats={
+                "processed": 1, "dry_run": True,
+                "client": client_name, "project": project_title, "summary": summary,
+            })
 
         # 메일 로그 적재
         ctx.db.add(EmailLog(

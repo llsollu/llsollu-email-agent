@@ -5,9 +5,33 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import get_current_user
 from app.framework.registry import all_templates, get_template
 from app.models import User
-from app.schemas.models import ConfigFieldOut, TemplateOut
+from app.schemas.models import (
+    ColumnsPreviewRequest,
+    ColumnsPreviewResponse,
+    ConfigFieldOut,
+    TemplateOut,
+)
+from app.services.graph import graph_client
+from app.templates.mail_scheduler.xlsx import parse_table
 
 router = APIRouter()
+
+
+@router.post("/mail_scheduler/columns", response_model=ColumnsPreviewResponse)
+async def preview_columns(
+    body: ColumnsPreviewRequest, _: User = Depends(get_current_user)
+) -> ColumnsPreviewResponse:
+    """참조 파일(xlsx)을 내려받아 컬럼명과 첫 행 샘플을 반환. 2단계 마법사에서 사용."""
+    if not body.file_url.strip():
+        raise HTTPException(status_code=400, detail="참조 파일 URL이 필요합니다")
+    try:
+        data = await graph_client.download_shared_file(body.file_url.strip())
+        columns, rows = parse_table(data)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"파일을 읽을 수 없습니다: {e}") from e
+    if not columns:
+        raise HTTPException(status_code=422, detail="파일에서 컬럼(헤더)을 찾지 못했습니다")
+    return ColumnsPreviewResponse(columns=columns, sample=rows[0] if rows else {}, row_count=len(rows))
 
 
 @router.get("", response_model=list[TemplateOut])
