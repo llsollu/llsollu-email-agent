@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/.env
+
+# Flutter
+frontend/.dart_tool/
+frontend/build/
+frontend/.flutter-plugins*
+frontend/web/
+frontend/windows/
+frontend/linux/
+frontend/macos/
+frontend/pubspec.lock

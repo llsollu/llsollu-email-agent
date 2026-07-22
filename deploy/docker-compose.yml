@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+    # 사내/로컬 전용 기본값 — postgres 포트는 호스트에 노출하지 않음(외부 직접 접근 불가).
+    # 운영 배포 시 반드시 변경하고 backend/.env 의 DATABASE_URL 도 함께 맞출 것.
+      POSTGRES_USER: llsollu
+      POSTGRES_PASSWORD: llsollu
+      POSTGRES_DB: llsollu_email_agent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llsollu"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+
+  api:
+    build: ../backend
+    env_file: ../backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Flutter web 빌드를 이 경로에 두면 API가 / 에서 서빙
+    volumes:
+      - ../frontend/build/web:/app/web:ro
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    build: ../backend
+    env_file: ../backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["arq", "app.workers.worker.WorkerSettings"]
+
+volumes:
+  pgdata:
+  redisdata:
