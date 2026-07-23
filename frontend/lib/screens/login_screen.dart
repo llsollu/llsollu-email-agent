@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
+import '../util/local_store.dart';
 import '../widgets/animated_background.dart';
 
 /// 첫 접속: 회사 이메일 + 비밀번호로 로그인.
@@ -21,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _remember = true;
+  bool _saveEmail = true;
   bool _obscure = true;
   String? _error;
   bool _busy = false;
@@ -28,6 +30,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // 저장된 이메일이 있으면 미리 채움
+    final saved = loadSavedEmail();
+    if (saved != null) {
+      _email.text = saved;
+      _saveEmail = true;
+    }
     // 두 필드 입력 여부에 따라 버튼 활성화 갱신
     _email.addListener(() => setState(() {}));
     _password.addListener(() => setState(() {}));
@@ -67,6 +75,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // existing
         user = await api.login(email, password, _remember);
       }
+      // 로그인 성공 시 이메일 저장 여부 반영
+      saveEmail(_saveEmail ? email : null);
       ref.read(currentUserProvider.notifier).state = user;
     } catch (e) {
       setState(() => _error = _clean('$e'));
@@ -216,6 +226,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onSubmitted: (_) => _submit(),
                   ),
                   const SizedBox(height: 4),
+                  CheckboxListTile(
+                    value: _saveEmail,
+                    onChanged: (v) => setState(() => _saveEmail = v ?? false),
+                    title: const Text('이메일 저장'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
                   CheckboxListTile(
                     value: _remember,
                     onChanged: (v) => setState(() => _remember = v ?? true),

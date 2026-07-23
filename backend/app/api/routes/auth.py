@@ -60,7 +60,9 @@ async def check_email(body: CheckEmailRequest, db: AsyncSession = Depends(get_db
     email = body.email.lower()
     res = await db.execute(select(User).where(User.email == email))
     user = res.scalar_one_or_none()
-    if user is not None and user.password_hash:
+    # DB에 계정이 있으면(비밀번호 유무와 무관) 항상 비밀번호 검증 경로로 → 로그인/실패만.
+    # 비밀번호 설정창(needs_setup)은 DB에 아예 없는 신규 회사 계정에만 나온다.
+    if user is not None:
         return CheckEmailResponse(status="existing", display_name=user.display_name)
     if not _domain_ok(email):
         return CheckEmailResponse(status="not_company")
@@ -74,8 +76,10 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     email = body.email.lower()
     res = await db.execute(select(User).where(User.email == email))
     user = res.scalar_one_or_none()
-    if user is None or not user.password_hash:
+    if user is None:
         raise HTTPException(status_code=401, detail="가입되지 않은 계정입니다")
+    if not user.password_hash:
+        raise HTTPException(status_code=401, detail="비밀번호가 설정되지 않은 계정입니다. 관리자에게 문의하세요")
     if not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다")
     user.last_login_at = datetime.now(timezone.utc)
