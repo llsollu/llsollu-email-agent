@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/models.dart';
 import '../state/providers.dart';
+import '../theme.dart';
 import 'add_agent_screen.dart';
 import 'kanban_screen.dart';
 import 'scheduler_screen.dart';
@@ -26,58 +27,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Row(
         children: [
           // ── 좌측 사이드바 ──
-          SizedBox(
-            width: 280,
-            child: Material(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  ListTile(
-                    leading: const Icon(Icons.hub),
-                    title: const Text('내 에이전트',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(user?.email ?? ''),
-                  ),
-                  const Divider(),
-                  Expanded(
-                    child: agentsAsync.when(
-                      data: (agents) => ListView(
-                        children: [
-                          for (final a in agents)
-                            ListTile(
-                              selected: _selected?.id == a.id,
-                              leading: Icon(_iconFor(a.viewType)),
-                              title: Text(a.name),
-                              subtitle: Text(_statusLabel(a.status)),
-                              onTap: () => setState(() => _selected = a),
-                            ),
-                        ],
+          Container(
+            width: 288,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(right: BorderSide(color: AppColors.line)),
+            ),
+            child: Column(
+              children: [
+                // 브랜드 헤더
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                            gradient: kBrandGradient, borderRadius: BorderRadius.circular(13)),
+                        child: const Icon(Icons.hub_rounded, color: Colors.white, size: 24),
                       ),
-                      loading: () => const Center(child: CircularProgressIndicator()),
-                      error: (e, _) => Center(child: Text('$e')),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Email Agent',
+                                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                            Text(user?.email ?? '',
+                                style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                                overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('내 에이전트',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.muted,
+                            letterSpacing: 0.4)),
+                  ),
+                ),
+                Expanded(
+                  child: agentsAsync.when(
+                    data: (agents) => agents.isEmpty
+                        ? const Center(
+                            child: Text('아직 에이전트가 없어요',
+                                style: TextStyle(color: AppColors.muted)))
+                        : ListView(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            children: [for (final a in agents) _navTile(a)],
+                          ),
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Center(child: Text('$e')),
+                  ),
+                ),
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  child: SizedBox(
+                    width: double.infinity,
                     child: FilledButton.icon(
-                      icon: const Icon(Icons.add),
-                      label: const Text('추가'),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('에이전트 추가'),
                       onPressed: _openAddAgent,
                     ),
                   ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.logout),
-                    label: const Text('로그아웃'),
-                    onPressed: () async {
-                      await ref.read(apiProvider).logout();
-                      ref.read(currentUserProvider.notifier).state = null;
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: const Text('로그아웃'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                  onPressed: () async {
+                    await ref.read(apiProvider).logout();
+                    ref.read(currentUserProvider.notifier).state = null;
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
           ),
           // ── 우측 콘텐츠 ──
@@ -87,10 +121,76 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _navTile(AgentInfo a) {
+    final selected = _selected?.id == a.id;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: selected ? AppColors.primary.withValues(alpha: 0.10) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _selected = a),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.primary : const Color(0xFFEEF1FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(_iconFor(a.viewType),
+                      size: 20, color: selected ? Colors.white : AppColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(a.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: selected ? AppColors.primaryDark : AppColors.ink)),
+                      Text(_statusLabel(a.status),
+                          style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _content() {
     final a = _selected;
     if (a == null) {
-      return const Center(child: Text('좌측에서 에이전트를 선택하거나 추가하세요'));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFEEF1FF), borderRadius: BorderRadius.circular(20)),
+              child: const Icon(Icons.auto_awesome_rounded, size: 34, color: AppColors.primary),
+            ),
+            const SizedBox(height: 16),
+            const Text('에이전트를 선택하거나 추가하세요',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text('좌측 목록에서 시작할 수 있어요', style: TextStyle(color: AppColors.muted)),
+          ],
+        ),
+      );
     }
     switch (a.viewType) {
       case 'kanban':
@@ -112,7 +212,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _refresh() => ref.invalidate(agentsProvider);
 
   IconData _iconFor(String? viewType) =>
-      viewType == 'kanban' ? Icons.view_kanban : Icons.schedule_send;
+      viewType == 'kanban' ? Icons.view_kanban_rounded : Icons.schedule_send_rounded;
 
   String _statusLabel(String s) => switch (s) {
         'configuring' => '구성 중…',

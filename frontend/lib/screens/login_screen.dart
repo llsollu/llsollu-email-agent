@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/models.dart';
 import '../state/providers.dart';
+import '../theme.dart';
+import '../widgets/animated_background.dart';
 
 /// 첫 접속: 회사 이메일 + 비밀번호로 로그인.
 /// - DB에 있는 계정: 비밀번호 일치 시 로그인
@@ -146,21 +148,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('LLSOLLU Email Agent',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  const Text('회사 이메일과 비밀번호로 로그인하세요'),
-                  const SizedBox(height: 20),
+      body: AnimatedBackground(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Card(
+                elevation: 18,
+                shadowColor: AppColors.primary.withValues(alpha: 0.18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 36, 32, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            gradient: kBrandGradient,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.35),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8)),
+                            ],
+                          ),
+                          child: const Icon(Icons.hub_rounded, color: Colors.white, size: 32),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text('LLSOLLU Email Agent',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                      const SizedBox(height: 6),
+                      const Text('회사 이메일과 비밀번호로 로그인하세요',
+                          textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+                      const SizedBox(height: 24),
                   TextField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
@@ -207,7 +236,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Text('로그인'),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

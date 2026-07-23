@@ -30,7 +30,7 @@ class ViewHeader extends ConsumerWidget {
           ...actions,
           IconButton(
             tooltip: '설정',
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings_rounded),
             onPressed: () async {
               final changed = await showAgentSettings(context, ref, agent);
               if (changed == true) onChanged();
