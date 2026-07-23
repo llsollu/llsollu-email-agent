@@ -39,6 +39,104 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
     setState(_reload);
   }
 
+  /// 드라이런: 최신 메일 1건을 분류(저장 안 함)하고 결과/오류를 다이얼로그로 표시.
+  Future<void> _dryRun() async {
+    final api = ref.read(apiProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    Set<String> before;
+    try {
+      before = (await api.runs(widget.agent.id)).map((r) => r.id).toSet();
+      await api.runNow(widget.agent.id, dryRun: true);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('실행 요청 실패: $e')));
+      return;
+    }
+    if (!mounted) return;
+
+    // 진행 중 다이얼로그
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(children: [
+          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 16),
+          Expanded(child: Text('최신 메일 1건을 분류하는 중…')),
+        ]),
+      ),
+    );
+
+    RunInfo? result;
+    for (var i = 0; i < 20; i++) {
+      await Future.delayed(const Duration(milliseconds: 1500));
+      try {
+        final runs = await api.runs(widget.agent.id);
+        final done = runs.where((r) =>
+            r.triggerSource == 'manual' && !before.contains(r.id) && r.status != 'running');
+        if (done.isNotEmpty) {
+          result = done.first;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // 진행 다이얼로그 닫기
+    _showDryRunResult(result);
+  }
+
+  void _showDryRunResult(RunInfo? r) {
+    late final Widget body;
+    if (r == null) {
+      body = const Text('결과를 확인하지 못했습니다(시간 초과). 잠시 후 다시 시도해 주세요.');
+    } else if (r.status == 'error') {
+      final msg = r.error ?? '알 수 없는 오류';
+      final hint = msg.contains('timed out') || msg.contains('timeout')
+          ? '\n\nLLM 서버에 연결하지 못했습니다. 분류 서버 주소·네트워크 연결을 확인하세요.'
+          : '';
+      body = Text('분류에 실패했습니다.\n\n$msg$hint');
+    } else {
+      final s = r.stats;
+      if ((s['processed'] ?? 0) == 0) {
+        body = const Text('분류할 새 메일이 없습니다.');
+      } else {
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _row('고객사', s['client']),
+            _row('프로젝트', s['project']),
+            _row('요약', s['summary']),
+            const SizedBox(height: 8),
+            const Text('※ 미리보기입니다. 실제 프로젝트/이슈에는 저장되지 않았습니다.',
+                style: TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        );
+      }
+    }
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('드라이런 결과'),
+        content: SizedBox(width: 420, child: SingleChildScrollView(child: body)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기')),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String k, Object? v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 64, child: Text(k, style: const TextStyle(color: Colors.black54))),
+            Expanded(child: Text('${v ?? '-'}')),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -48,15 +146,9 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
           onChanged: widget.onChanged,
           actions: [
             TextButton.icon(
-              icon: const Icon(Icons.play_arrow),
+              icon: const Icon(Icons.play_arrow_rounded),
               label: const Text('지금 실행(드라이런)'),
-              onPressed: () async {
-                await ref.read(apiProvider).runNow(widget.agent.id, dryRun: true);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('드라이런 실행을 큐에 넣었습니다 (최신 메일 1건 분류, 저장 안 함)')));
-                }
-              },
+              onPressed: _dryRun,
             ),
             IconButton(
               tooltip: '새로고침',
