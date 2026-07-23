@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
 
-PROJECT_STATUSES = ("active", "on_hold", "completed", "cancelled")
+PROJECT_STATUSES = ("storyboard", "active", "on_hold", "completed", "cancelled")
 
 
 class Project(Base, TimestampMixin):

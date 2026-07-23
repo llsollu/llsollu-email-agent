@@ -133,6 +133,7 @@ class ProjectOut(BaseModel):
     phase: str | None = None
     priority: str
     latest_update: str | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True

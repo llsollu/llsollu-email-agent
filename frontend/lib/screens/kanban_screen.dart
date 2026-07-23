@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/models.dart';
 import '../state/providers.dart';
+import '../theme.dart';
 import '../widgets/view_header.dart';
 
-/// T1 뷰: 고객사 프로젝트 칸반.
+/// T1 뷰: 고객사 프로젝트 칸반. 카드 드래그로 상태 변경 + 검색/필터/정렬.
 class KanbanScreen extends ConsumerStatefulWidget {
   final AgentInfo agent;
   final VoidCallback onChanged;
@@ -14,32 +15,487 @@ class KanbanScreen extends ConsumerStatefulWidget {
   ConsumerState<KanbanScreen> createState() => _KanbanScreenState();
 }
 
-const _columns = {
-  'active': '진행 중',
-  'on_hold': '보류',
-  'completed': '완료',
-  'cancelled': '취소',
+// (status, label, accent)
+const _columns = <(String, String, Color)>[
+  ('storyboard', '스토리보드', AppColors.storyboard),
+  ('active', '진행 중', AppColors.success),
+  ('on_hold', '보류', AppColors.warning),
+  ('completed', '완료', AppColors.muted),
+  ('cancelled', '취소', AppColors.danger),
+];
+const _statusLabel = {
+  'storyboard': '스토리보드', 'active': '진행 중', 'on_hold': '보류', 'completed': '완료', 'cancelled': '취소'
 };
+const _phaseLabel = {
+  'inquiry': '문의', 'proposal': '제안', 'contract': '계약', 'kickoff': '착수',
+  'development': '개발', 'testing': '테스트', 'delivery': '납품', 'maintenance': '유지보수'
+};
+const _issueTypeLabel = {
+  'bug': '버그', 'request': '요청', 'delay': '지연', 'question': '문의', 'complaint': '불만', 'general': '일반'
+};
+const _severityLabel = {'critical': '치명', 'high': '높음', 'medium': '보통', 'low': '낮음'};
+const _priorityOrder = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3};
 
 class _KanbanScreenState extends ConsumerState<KanbanScreen> {
-  late Future<List<ProjectInfo>> _future;
+  List<ProjectInfo> _all = [];
+  final Map<String, String> _override = {}; // 낙관적 상태 변경
+  bool _loading = true;
+  String _query = '';
+  String _statusFilter = '';
+  String _sortBy = 'updated';
 
   @override
   void initState() {
     super.initState();
-    _reload();
+    _load();
   }
 
-  void _reload() {
-    _future = ref.read(apiProvider).projects(widget.agent.id);
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final data = await ref.read(apiProvider).projects(widget.agent.id);
+      if (!mounted) return;
+      setState(() {
+        _all = data;
+        _override.clear();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  Future<void> _move(ProjectInfo p, String status) async {
-    await ref.read(apiProvider).setProjectStatus(widget.agent.id, p.id, status);
-    setState(_reload);
+  String _statusOf(ProjectInfo p) => _override[p.id] ?? p.status;
+
+  List<ProjectInfo> _visible() {
+    final q = _query.toLowerCase();
+    final list = _all.where((p) {
+      if (q.isNotEmpty &&
+          !p.clientName.toLowerCase().contains(q) &&
+          !p.title.toLowerCase().contains(q)) {
+        return false;
+      }
+      if (_statusFilter.isNotEmpty && _statusOf(p) != _statusFilter) {
+        return false;
+      }
+      return true;
+    }).toList();
+    list.sort((a, b) {
+      switch (_sortBy) {
+        case 'priority':
+          return (_priorityOrder[a.priority] ?? 2).compareTo(_priorityOrder[b.priority] ?? 2);
+        case 'client':
+          return a.clientName.compareTo(b.clientName);
+        default:
+          return (b.updatedAt ?? '').compareTo(a.updatedAt ?? '');
+      }
+    });
+    return list;
   }
 
-  /// 드라이런: 최신 메일 1건을 분류(저장 안 함)하고 결과/오류를 다이얼로그로 표시.
+  Future<void> _moveCard(ProjectInfo p, String newStatus) async {
+    if (_statusOf(p) == newStatus) return;
+    setState(() => _override[p.id] = newStatus);
+    try {
+      await ref.read(apiProvider).setProjectStatus(widget.agent.id, p.id, newStatus);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _override.remove(p.id));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('상태 변경에 실패했습니다. 다시 시도해 주세요.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ViewHeader(
+          agent: widget.agent,
+          onChanged: widget.onChanged,
+          actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('지금 실행(드라이런)'),
+              onPressed: _dryRun,
+            ),
+            IconButton(
+              tooltip: '새로고침',
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _load,
+            ),
+          ],
+        ),
+        _toolbar(),
+        if (!_loading) _statRow(),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _kanban(),
+        ),
+      ],
+    );
+  }
+
+  Widget _toolbar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(
+            width: 240,
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: '고객사 / 프로젝트 검색…',
+                prefixIcon: Icon(Icons.search_rounded, size: 20),
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          _dropdown(_statusFilter, {
+            '': '전체 상태',
+            for (final c in _columns) c.$1: c.$2,
+          }, (v) => setState(() => _statusFilter = v)),
+          _dropdown(_sortBy, const {
+            'updated': '최근 업데이트 순',
+            'priority': '우선순위 순',
+            'client': '고객사명 순',
+          }, (v) => setState(() => _sortBy = v)),
+        ],
+      ),
+    );
+  }
+
+  Widget _dropdown(String value, Map<String, String> items, void Function(String) onCh) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.line),
+        borderRadius: BorderRadius.circular(kRadius),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isDense: true,
+          borderRadius: BorderRadius.circular(kRadius),
+          style: const TextStyle(fontSize: 14, color: AppColors.ink),
+          items: [
+            for (final e in items.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+          ],
+          onChanged: (v) => onCh(v ?? ''),
+        ),
+      ),
+    );
+  }
+
+  Widget _statRow() {
+    final vis = _visible();
+    final active = vis.where((p) => _statusOf(p) == 'active').length;
+    final onHold = vis.where((p) => _statusOf(p) == 'on_hold').length;
+    final withIssues = vis.where((p) => p.issues.any((i) => i.status != 'resolved')).length;
+    Widget box(String v, String l, {Color? color}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.line),
+            borderRadius: BorderRadius.circular(kRadius),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(v, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color ?? AppColors.primary)),
+              Text(l, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            ],
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Wrap(spacing: 12, runSpacing: 12, children: [
+        box('${vis.length}', '전체 이슈'),
+        box('$active', '진행 중'),
+        box('$onHold', '보류'),
+        box('$withIssues', '미해결 이슈', color: AppColors.danger),
+      ]),
+    );
+  }
+
+  Widget _kanban() {
+    final vis = _visible();
+    final cols = _statusFilter.isEmpty
+        ? _columns
+        : _columns.where((c) => c.$1 == _statusFilter).toList();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final c in cols) _column(c.$1, c.$2, c.$3, vis.where((p) => _statusOf(p) == c.$1).toList()),
+        ],
+      ),
+    );
+  }
+
+  Widget _column(String status, String label, Color accent, List<ProjectInfo> cards) {
+    return Container(
+      width: 300,
+      margin: const EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        color: AppColors.gray100,
+        border: Border.all(color: AppColors.line),
+        borderRadius: BorderRadius.circular(kRadius),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 상단 컬러 보더
+          Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadius)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.line),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text('${cards.length}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted)),
+                ),
+              ],
+            ),
+          ),
+          DragTarget<String>(
+            onWillAcceptWithDetails: (_) => true,
+            onAcceptWithDetails: (d) {
+              final p = _all.firstWhere((x) => x.id == d.data);
+              _moveCard(p, status);
+            },
+            builder: (context, candidate, rejected) {
+              final over = candidate.isNotEmpty;
+              return Container(
+                constraints: const BoxConstraints(minHeight: 80),
+                margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: over ? const Color(0xFFE8F4FD) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(6),
+                  border: over
+                      ? Border.all(color: AppColors.primary, width: 1.5, style: BorderStyle.solid)
+                      : null,
+                ),
+                child: cards.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text('카드를 여기로 드래그',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                      )
+                    : Column(children: [for (final p in cards) _draggableCard(p)]),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _draggableCard(ProjectInfo p) {
+    final card = _card(p);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Draggable<String>(
+        data: p.id,
+        feedback: Material(
+          color: Colors.transparent,
+          child: SizedBox(width: 276, child: _card(p, elevated: true)),
+        ),
+        childWhenDragging: Opacity(opacity: 0.4, child: card),
+        child: card,
+      ),
+    );
+  }
+
+  Widget _card(ProjectInfo p, {bool elevated = false}) {
+    final openIssues = p.issues.where((i) => i.status != 'resolved').toList();
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(kRadius),
+      elevation: elevated ? 6 : 0,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(kRadius),
+        onTap: () => _openDetail(p),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.line),
+            borderRadius: BorderRadius.circular(kRadius),
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p.clientName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                        Text(p.title, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 8, height: 8, margin: const EdgeInsets.only(top: 4, left: 6),
+                    decoration: BoxDecoration(color: _priorityColor(p.priority), shape: BoxShape.circle),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                if (p.phase != null) _badge(_phaseLabel[p.phase] ?? p.phase!, const Color(0xFFE8F4FD), const Color(0xFF0563A5)),
+                _statusBadge(_statusOf(p)),
+              ]),
+              if (p.latestUpdate != null && p.latestUpdate!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.only(left: 8),
+                  decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.line, width: 3))),
+                  child: Text(p.latestUpdate!,
+                      maxLines: 3, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                ),
+              ],
+              if (openIssues.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final i in openIssues.take(3))
+                    _badge('${_issueTypeLabel[i.type] ?? i.type}: ${i.summary.length > 20 ? '${i.summary.substring(0, 20)}…' : i.summary}',
+                        const Color(0xFFFDE8E8), AppColors.danger),
+                ]),
+              ],
+              if (p.updatedAt != null) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(_fmtDate(p.updatedAt), style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String text, Color bg, Color fg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w500)),
+      );
+
+  Widget _statusBadge(String status) {
+    const map = {
+      'storyboard': (Color(0xFFF3E8FF), AppColors.storyboard),
+      'active': (Color(0xFFE6F4EA), AppColors.success),
+      'on_hold': (Color(0xFFFFF3CD), Color(0xFF856404)),
+      'completed': (AppColors.gray100, AppColors.muted),
+      'cancelled': (Color(0xFFFDE8E8), AppColors.danger),
+    };
+    final (bg, fg) = map[status] ?? (AppColors.gray100, AppColors.muted);
+    return _badge(_statusLabel[status] ?? status, bg, fg);
+  }
+
+  Color _priorityColor(String? p) => switch (p) {
+        'critical' => AppColors.danger,
+        'high' => AppColors.warning,
+        'low' => AppColors.muted,
+        _ => AppColors.primary,
+      };
+
+  String _fmtDate(String? iso) {
+    if (iso == null) return '';
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return '';
+    final k = dt.toUtc().add(const Duration(hours: 9));
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(k.month)}/${two(k.day)} ${two(k.hour)}:${two(k.minute)}';
+  }
+
+  void _openDetail(ProjectInfo p) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('${p.clientName} — ${p.title}', style: const TextStyle(fontSize: 17)),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  if (p.phase != null) _badge(_phaseLabel[p.phase] ?? p.phase!, const Color(0xFFE8F4FD), const Color(0xFF0563A5)),
+                  _statusBadge(_statusOf(p)),
+                ]),
+                if (p.latestUpdate != null && p.latestUpdate!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(p.latestUpdate!, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                ],
+                const SizedBox(height: 16),
+                const Text('이슈 목록', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(height: 8),
+                if (p.issues.isEmpty)
+                  const Text('이슈 없음', style: TextStyle(fontSize: 13, color: AppColors.muted))
+                else
+                  for (final i in p.issues)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.line),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(i.summary, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '유형: ${_issueTypeLabel[i.type] ?? i.type} · 심각도: ${_severityLabel[i.severity] ?? i.severity} · '
+                            '상태: ${i.status == 'resolved' ? '해결됨' : i.status == 'in_progress' ? '처리 중' : '미해결'}',
+                            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+      ),
+    );
+  }
+
+  // ── 드라이런: 최신 메일 1건 분류(저장 안 함) 결과/오류 표시 ──
   Future<void> _dryRun() async {
     final api = ref.read(apiProvider);
     final messenger = ScaffoldMessenger.of(context);
@@ -52,8 +508,6 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
       return;
     }
     if (!mounted) return;
-
-    // 진행 중 다이얼로그
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -65,7 +519,6 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
         ]),
       ),
     );
-
     RunInfo? result;
     for (var i = 0; i < 20; i++) {
       await Future.delayed(const Duration(milliseconds: 1500));
@@ -79,9 +532,8 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
         }
       } catch (_) {}
     }
-
     if (!mounted) return;
-    Navigator.of(context).pop(); // 진행 다이얼로그 닫기
+    Navigator.of(context).pop();
     _showDryRunResult(result);
   }
 
@@ -104,12 +556,12 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _row('고객사', s['client']),
-            _row('프로젝트', s['project']),
-            _row('요약', s['summary']),
+            _detailRow('고객사', s['client']),
+            _detailRow('프로젝트', s['project']),
+            _detailRow('요약', s['summary']),
             const SizedBox(height: 8),
             const Text('※ 미리보기입니다. 실제 프로젝트/이슈에는 저장되지 않았습니다.',
-                style: TextStyle(fontSize: 12, color: Colors.black54)),
+                style: TextStyle(fontSize: 12, color: AppColors.muted)),
           ],
         );
       }
@@ -119,131 +571,19 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
       builder: (_) => AlertDialog(
         title: const Text('드라이런 결과'),
         content: SizedBox(width: 420, child: SingleChildScrollView(child: body)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기')),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
       ),
     );
   }
 
-  Widget _row(String k, Object? v) => Padding(
+  Widget _detailRow(String k, Object? v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 64, child: Text(k, style: const TextStyle(color: Colors.black54))),
+            SizedBox(width: 64, child: Text(k, style: const TextStyle(color: AppColors.muted))),
             Expanded(child: Text('${v ?? '-'}')),
           ],
         ),
       );
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ViewHeader(
-          agent: widget.agent,
-          onChanged: widget.onChanged,
-          actions: [
-            TextButton.icon(
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('지금 실행(드라이런)'),
-              onPressed: _dryRun,
-            ),
-            IconButton(
-              tooltip: '새로고침',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => setState(_reload),
-            ),
-          ],
-        ),
-        Expanded(
-          child: FutureBuilder<List<ProjectInfo>>(
-            future: _future,
-            builder: (context, snap) {
-              if (!snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final projects = snap.data!;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final entry in _columns.entries)
-                      _column(entry.key, entry.value,
-                          projects.where((p) => p.status == entry.key).toList()),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _column(String status, String label, List<ProjectInfo> items) {
-    return Container(
-      width: 300,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text('$label (${items.length})',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          for (final p in items) _card(p, status),
-        ],
-      ),
-    );
-  }
-
-  Widget _card(ProjectInfo p, String status) {
-    final openIssues = p.issues.where((i) => i.status != 'resolved').toList();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(p.clientName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 18),
-                  onSelected: (s) => _move(p, s),
-                  itemBuilder: (_) => [
-                    for (final e in _columns.entries)
-                      if (e.key != status) PopupMenuItem(value: e.key, child: Text('→ ${e.value}')),
-                  ],
-                ),
-              ],
-            ),
-            Text(p.title, style: const TextStyle(fontSize: 13)),
-            if (p.latestUpdate != null) ...[
-              const SizedBox(height: 4),
-              Text(p.latestUpdate!,
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-            ],
-            for (final i in openIssues.take(3))
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Chip(
-                  label: Text('${i.type}: ${i.summary}',
-                      style: const TextStyle(fontSize: 10)),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 }

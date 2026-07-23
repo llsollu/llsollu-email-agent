@@ -47,7 +47,7 @@ String humanFromScheduleUi(Map<String, dynamic> s) {
     case 'monthly':
       return '매월 ${s['day'] ?? 1}일 $hm';
     case 'hourly':
-      return '매시 ${minute}분';
+      return '매시 $minute분';
     case 'minutely':
       return '${s['interval'] ?? 30}분마다';
     case 'daily':

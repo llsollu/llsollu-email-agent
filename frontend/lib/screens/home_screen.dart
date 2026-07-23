@@ -139,7 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: selected ? AppColors.primary : const Color(0xFFEEF1FF),
+                    color: selected ? AppColors.primary : const Color(0xFFE8F4FD),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(_iconFor(a.viewType),
@@ -180,7 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                  color: const Color(0xFFEEF1FF), borderRadius: BorderRadius.circular(20)),
+                  color: const Color(0xFFE8F4FD), borderRadius: BorderRadius.circular(20)),
               child: const Icon(Icons.auto_awesome_rounded, size: 34, color: AppColors.primary),
             ),
             const SizedBox(height: 16),

@@ -60,7 +60,7 @@ class AgentInfo {
 
 class ProjectInfo {
   final String id, clientName, title, status;
-  final String? phase, latestUpdate;
+  final String? phase, latestUpdate, priority, updatedAt;
   final List<IssueInfo> issues;
   ProjectInfo.fromJson(Map<String, dynamic> j)
       : id = j['id'],
@@ -68,6 +68,8 @@ class ProjectInfo {
         title = j['title'],
         status = j['status'],
         phase = j['phase'],
+        priority = j['priority'],
+        updatedAt = j['updated_at'],
         latestUpdate = j['latest_update'],
         issues = ((j['issues'] as List?) ?? [])
             .map((e) => IssueInfo.fromJson(e))
