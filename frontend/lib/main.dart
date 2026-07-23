@@ -23,6 +23,7 @@ Future<void> _loadPretendard() async {
   const base = 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static';
   const files = [
     'Pretendard-Regular.otf',
+    'Pretendard-Medium.otf',
     'Pretendard-SemiBold.otf',
     'Pretendard-Bold.otf',
     'Pretendard-ExtraBold.otf',

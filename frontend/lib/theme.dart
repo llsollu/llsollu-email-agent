@@ -51,14 +51,17 @@ ThemeData buildAppTheme() {
     ],
   );
 
-  final text = base.textTheme
-      .apply(bodyColor: AppColors.ink, displayColor: AppColors.ink)
-      .copyWith(
-        headlineSmall: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.2),
-        titleLarge: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: -0.2),
-        titleMedium: const TextStyle(fontWeight: FontWeight.w600),
-        labelLarge: const TextStyle(fontWeight: FontWeight.w600),
-      );
+  // 본문 기본 굵기를 Medium(w500)으로 올려 그레이스케일 AA 환경에서도 또렷하게.
+  final t0 = base.textTheme.apply(bodyColor: AppColors.ink, displayColor: AppColors.ink);
+  final text = t0.copyWith(
+    headlineSmall: t0.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+    titleLarge: t0.titleLarge?.copyWith(fontWeight: FontWeight.w600, letterSpacing: -0.2),
+    titleMedium: t0.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+    labelLarge: t0.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+    bodyLarge: t0.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+    bodyMedium: t0.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+    bodySmall: t0.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+  );
 
   RoundedRectangleBorder r([double radius = kRadius, Color? side]) => RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
