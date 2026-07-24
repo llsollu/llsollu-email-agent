@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/models.dart';
 import '../state/providers.dart';
+import 'classifier_form.dart';
 import 'config_form.dart';
 import 'mail_scheduler_form.dart';
 
@@ -83,7 +84,10 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isMailScheduler = widget.agent.templateKey == 'mail_scheduler';
+    final key = widget.agent.templateKey;
+    final isMailScheduler = key == 'mail_scheduler';
+    final isClassifier = key == 'project_tracker';
+    final custom = isMailScheduler || isClassifier;
     return AlertDialog(
       title: Row(
         children: [
@@ -109,30 +113,37 @@ class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
                 submitLabel: '저장',
                 onSubmit: (name, config) => _saveDirect(name, config, const {}),
               )
-            : _schema == null
-                ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
-                : SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: _nameController,
-                          decoration:
-                              const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
+            : isClassifier
+                ? ClassifierForm(
+                    initialName: widget.agent.name,
+                    initialConfig: widget.agent.config,
+                    busy: _busy,
+                    submitLabel: '저장',
+                    onSubmit: (name, config) => _saveDirect(name, config, const {}),
+                  )
+                : _schema == null
+                    ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
+                    : SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
+                            ),
+                            ConfigForm(
+                              fields: _schema!,
+                              initialConfig: widget.agent.config,
+                              onChanged: (c, s) {
+                                _config = c;
+                                _secrets = s;
+                              },
+                            ),
+                          ],
                         ),
-                        ConfigForm(
-                          fields: _schema!,
-                          initialConfig: widget.agent.config,
-                          onChanged: (c, s) {
-                            _config = c;
-                            _secrets = s;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
       ),
-      actions: isMailScheduler
+      actions: custom
           ? [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('닫기'))]
           : [
               TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),

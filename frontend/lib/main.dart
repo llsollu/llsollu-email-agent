@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,9 +54,21 @@ class LlsolluApp extends ConsumerWidget {
       title: 'LLSOLLU Email Agent',
       theme: buildAppTheme(),
       debugShowCheckedModeBanner: false,
+      scrollBehavior: _AppScrollBehavior(),
       home: const _AuthGate(),
     );
   }
+}
+
+/// 마우스 드래그로도 스크롤되도록(웹에서 수평 스크롤 등) dragDevices 확장.
+class _AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
 }
 
 /// 앱 시작 시 /me 로 세션 확인 → 자동 로그인. 실패 시 로그인 화면.

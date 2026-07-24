@@ -26,28 +26,32 @@ const _columns = <(String, String, Color)>[
 const _statusLabel = {
   'storyboard': '스토리보드', 'active': '진행 중', 'on_hold': '보류', 'completed': '완료', 'cancelled': '취소'
 };
-const _phaseLabel = {
-  'inquiry': '문의', 'proposal': '제안', 'contract': '계약', 'kickoff': '착수',
-  'development': '개발', 'testing': '테스트', 'delivery': '납품', 'maintenance': '유지보수'
-};
 const _issueTypeLabel = {
   'bug': '버그', 'request': '요청', 'delay': '지연', 'question': '문의', 'complaint': '불만', 'general': '일반'
 };
 const _severityLabel = {'critical': '치명', 'high': '높음', 'medium': '보통', 'low': '낮음'};
-const _priorityOrder = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3};
 
 class _KanbanScreenState extends ConsumerState<KanbanScreen> {
   List<ProjectInfo> _all = [];
   final Map<String, String> _override = {}; // 낙관적 상태 변경
+  final ScrollController _hScroll = ScrollController();
   bool _loading = true;
   String _query = '';
-  String _statusFilter = '';
+  String _categoryFilter = '';
   String _sortBy = 'updated';
+
+  String get _titleField => (widget.agent.config['card_title_field'] ?? 'client').toString();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _hScroll.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -67,6 +71,15 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
 
   String _statusOf(ProjectInfo p) => _override[p.id] ?? p.status;
 
+  List<String> _categories() {
+    final set = <String>{};
+    for (final p in _all) {
+      if (p.category != null && p.category!.isNotEmpty) set.add(p.category!);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
   List<ProjectInfo> _visible() {
     final q = _query.toLowerCase();
     final list = _all.where((p) {
@@ -75,15 +88,15 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
           !p.title.toLowerCase().contains(q)) {
         return false;
       }
-      if (_statusFilter.isNotEmpty && _statusOf(p) != _statusFilter) {
+      if (_categoryFilter.isNotEmpty && (p.category ?? '') != _categoryFilter) {
         return false;
       }
       return true;
     }).toList();
     list.sort((a, b) {
       switch (_sortBy) {
-        case 'priority':
-          return (_priorityOrder[a.priority] ?? 2).compareTo(_priorityOrder[b.priority] ?? 2);
+        case 'category':
+          return (a.category ?? '').compareTo(b.category ?? '');
         case 'client':
           return a.clientName.compareTo(b.clientName);
         default:
@@ -156,13 +169,13 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
               onChanged: (v) => setState(() => _query = v),
             ),
           ),
-          _dropdown(_statusFilter, {
-            '': '전체 상태',
-            for (final c in _columns) c.$1: c.$2,
-          }, (v) => setState(() => _statusFilter = v)),
+          _dropdown(_categoryFilter, {
+            '': '전체 분류',
+            for (final c in _categories()) c: c,
+          }, (v) => setState(() => _categoryFilter = v)),
           _dropdown(_sortBy, const {
             'updated': '최근 업데이트 순',
-            'priority': '우선순위 순',
+            'category': '분류 순',
             'client': '고객사명 순',
           }, (v) => setState(() => _sortBy = v)),
         ],
@@ -208,8 +221,8 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(v, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color ?? AppColors.primary)),
-              Text(l, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+              Text(v, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: color ?? AppColors.primary)),
+              Text(l, style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w600)),
             ],
           ),
         );
@@ -226,24 +239,33 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
 
   Widget _kanban() {
     final vis = _visible();
-    final cols = _statusFilter.isEmpty
-        ? _columns
-        : _columns.where((c) => c.$1 == _statusFilter).toList();
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final c in cols) _column(c.$1, c.$2, c.$3, vis.where((p) => _statusOf(p) == c.$1).toList()),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final colHeight = (constraints.maxHeight - 24).clamp(160.0, double.infinity);
+        return Scrollbar(
+          controller: _hScroll,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _hScroll,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final c in _columns)
+                  _column(c.$1, c.$2, c.$3, vis.where((p) => _statusOf(p) == c.$1).toList(), colHeight),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _column(String status, String label, Color accent, List<ProjectInfo> cards) {
+  Widget _column(String status, String label, Color accent, List<ProjectInfo> cards, double height) {
     return Container(
       width: 300,
+      height: height,
       margin: const EdgeInsets.only(right: 16),
       decoration: BoxDecoration(
         color: AppColors.gray100,
@@ -251,9 +273,7 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
         borderRadius: BorderRadius.circular(kRadius),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // 상단 컬러 보더
           Container(
             height: 3,
             decoration: BoxDecoration(
@@ -266,7 +286,7 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
                   decoration: BoxDecoration(
@@ -275,40 +295,40 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text('${cards.length}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted)),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.muted)),
                 ),
               ],
             ),
           ),
-          DragTarget<String>(
-            onWillAcceptWithDetails: (_) => true,
-            onAcceptWithDetails: (d) {
-              final p = _all.firstWhere((x) => x.id == d.data);
-              _moveCard(p, status);
-            },
-            builder: (context, candidate, rejected) {
-              final over = candidate.isNotEmpty;
-              return Container(
-                constraints: const BoxConstraints(minHeight: 80),
-                margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: over ? const Color(0xFFE8F4FD) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: over
-                      ? Border.all(color: AppColors.primary, width: 1.5, style: BorderStyle.solid)
-                      : null,
-                ),
-                child: cards.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text('카드를 여기로 드래그',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: AppColors.muted)),
-                      )
-                    : Column(children: [for (final p in cards) _draggableCard(p)]),
-              );
-            },
+          Expanded(
+            child: DragTarget<String>(
+              onWillAcceptWithDetails: (_) => true,
+              onAcceptWithDetails: (d) {
+                final p = _all.firstWhere((x) => x.id == d.data);
+                _moveCard(p, status);
+              },
+              builder: (context, candidate, rejected) {
+                final over = candidate.isNotEmpty;
+                return Container(
+                  margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: over ? const Color(0xFFE8F4FD) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    border: over ? Border.all(color: AppColors.primary, width: 1.5) : null,
+                  ),
+                  child: cards.isEmpty
+                      ? const Center(
+                          child: Text('카드를 여기로 드래그',
+                              style: TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
+                        )
+                      : ListView(
+                          padding: EdgeInsets.zero,
+                          children: [for (final p in cards) _draggableCard(p)],
+                        ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -357,8 +377,9 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(p.clientName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                        Text(p.title, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                        Text(_cardPrimary(p), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        Text(_cardSecondary(p),
+                            style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
                       ],
                     ),
                   ),
@@ -370,7 +391,8 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
               ),
               const SizedBox(height: 10),
               Wrap(spacing: 6, runSpacing: 6, children: [
-                if (p.phase != null) _badge(_phaseLabel[p.phase] ?? p.phase!, const Color(0xFFE8F4FD), const Color(0xFF0563A5)),
+                if (p.category != null && p.category!.isNotEmpty)
+                  _badge(p.category!, const Color(0xFFE8F4FD), const Color(0xFF0563A5)),
                 _statusBadge(_statusOf(p)),
               ]),
               if (p.latestUpdate != null && p.latestUpdate!.isNotEmpty) ...[
@@ -395,7 +417,8 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Text(_fmtDate(p.updatedAt), style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                  child: Text(_fmtDate(p.updatedAt),
+                      style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w500)),
                 ),
               ],
             ],
@@ -405,10 +428,20 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
     );
   }
 
+  String _cardPrimary(ProjectInfo p) => switch (_titleField) {
+        'category' => (p.category?.isNotEmpty ?? false) ? p.category! : '(분류 없음)',
+        'title' => p.title,
+        _ => p.clientName,
+      };
+  String _cardSecondary(ProjectInfo p) => switch (_titleField) {
+        'title' => p.clientName,
+        _ => p.title,
+      };
+
   Widget _badge(String text, Color bg, Color fg) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-        child: Text(text, style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w500)),
+        child: Text(text, style: TextStyle(fontSize: 12, color: fg, fontWeight: FontWeight.w600)),
       );
 
   Widget _statusBadge(String status) {
@@ -452,15 +485,17 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Wrap(spacing: 6, runSpacing: 6, children: [
-                  if (p.phase != null) _badge(_phaseLabel[p.phase] ?? p.phase!, const Color(0xFFE8F4FD), const Color(0xFF0563A5)),
+                  if (p.category != null && p.category!.isNotEmpty)
+                    _badge(p.category!, const Color(0xFFE8F4FD), const Color(0xFF0563A5)),
                   _statusBadge(_statusOf(p)),
                 ]),
                 if (p.latestUpdate != null && p.latestUpdate!.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text(p.latestUpdate!, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                  Text(p.latestUpdate!,
+                      style: const TextStyle(fontSize: 14, color: AppColors.ink, fontWeight: FontWeight.w500)),
                 ],
                 const SizedBox(height: 16),
-                const Text('이슈 목록', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text('이슈 목록', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 const SizedBox(height: 8),
                 if (p.issues.isEmpty)
                   const Text('이슈 없음', style: TextStyle(fontSize: 13, color: AppColors.muted))
@@ -481,7 +516,7 @@ class _KanbanScreenState extends ConsumerState<KanbanScreen> {
                           Text(
                             '유형: ${_issueTypeLabel[i.type] ?? i.type} · 심각도: ${_severityLabel[i.severity] ?? i.severity} · '
                             '상태: ${i.status == 'resolved' ? '해결됨' : i.status == 'in_progress' ? '처리 중' : '미해결'}',
-                            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                            style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),

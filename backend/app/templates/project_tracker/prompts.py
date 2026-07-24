@@ -1,6 +1,6 @@
 SYSTEM = """너는 B2B 소프트웨어 회사의 이메일 분석 어시스턴트다.
 수신된 고객 이메일을 읽고 어느 고객사/프로젝트에 관한 것인지 분류하고, 핵심을 한국어로 요약하며,
-처리해야 할 이슈가 있으면 구조화한다."""
+처리해야 할 이슈가 있으면 구조화한다. 분류(category)는 반드시 주어진 카테고리 중 하나로 정한다."""
 
 USER_TMPL = """다음 이메일을 분석하라.
 
@@ -9,11 +9,13 @@ USER_TMPL = """다음 이메일을 분석하라.
 본문:
 {body}
 
+분류 카테고리 후보: {categories}
+
 아래 JSON 스키마로만 답하라:
 {{
   "client_name": "고객사명 또는 null",
   "project_title": "프로젝트/건명 또는 null",
-  "phase": "inquiry|proposal|contract|kickoff|development|testing|delivery|maintenance 또는 null",
+  "category": "위 카테고리 후보 중 하나 또는 null",
   "summary": "한 줄 요약",
   "action_required": true/false,
   "issue": {{

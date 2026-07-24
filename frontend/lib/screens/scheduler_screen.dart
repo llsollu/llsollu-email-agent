@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/models.dart';
 import '../state/providers.dart';
+import '../theme.dart';
 import '../widgets/schedule_util.dart';
 import '../widgets/view_header.dart';
 
@@ -44,14 +45,12 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
           onChanged: widget.onChanged,
           actions: [
             TextButton.icon(
-              icon: const Icon(Icons.play_arrow),
+              icon: const Icon(Icons.play_arrow_rounded),
               label: const Text('지금 실행(드라이런)'),
               onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 await ref.read(apiProvider).runNow(widget.agent.id, dryRun: true);
-                if (mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('드라이런 실행을 큐에 넣었습니다')));
-                }
+                messenger.showSnackBar(const SnackBar(content: Text('드라이런 실행을 큐에 넣었습니다')));
                 setState(_reload);
               },
             ),
@@ -93,7 +92,7 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
                       ),
                     ),
                   const SizedBox(height: 12),
-                  const Text('최근 실행 로그', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('최근 실행 로그', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                   for (final r in data.runs) _runTile(r),
                   if (data.runs.isEmpty) const Padding(
                     padding: EdgeInsets.all(8), child: Text('아직 실행 이력이 없습니다')),
@@ -112,7 +111,7 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
               const SizedBox(height: 8),
               ...children,
             ],
@@ -121,12 +120,18 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
       );
 
   Widget _kv(String k, Object v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 140, child: Text(k, style: const TextStyle(color: Colors.black54))),
-            Expanded(child: Text('$v')),
+            SizedBox(
+                width: 140,
+                child: Text(k,
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.muted, fontWeight: FontWeight.w600))),
+            Expanded(
+                child: Text('$v',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
           ],
         ),
       );
@@ -173,15 +178,15 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
       child: ListTile(
         leading: Icon(Icons.circle, color: color, size: 14),
         title: Text('${_triggerLabel[r.triggerSource] ?? r.triggerSource} · '
-            '${_statusLabel[r.status] ?? r.status}'),
+            '${_statusLabel[r.status] ?? r.status}', style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(summary),
+            Text(summary, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             if (r.error != null)
-              Text('오류: ${r.error}', style: const TextStyle(color: Colors.red)),
+              Text('오류: ${r.error}', style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
             for (final d in details.take(5))
-              Text(d, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text(d, style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
           ],
         ),
       ),

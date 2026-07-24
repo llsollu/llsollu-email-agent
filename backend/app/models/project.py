@@ -21,7 +21,7 @@ class Project(Base, TimestampMixin):
     client_name: Mapped[str] = mapped_column(String(200), index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(400), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
-    phase: Mapped[str | None] = mapped_column(String(40))
+    category: Mapped[str | None] = mapped_column(String(80))  # 사용자 정의 분류
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     latest_update: Mapped[str | None] = mapped_column(Text)
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

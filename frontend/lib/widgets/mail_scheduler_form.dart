@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/providers.dart';
+import '../theme.dart';
 import 'schedule_util.dart';
 
 /// 메일 스케줄러 전용 설정 폼.
 /// - 생성(wizard=true): 2단계. 1단계 기본정보 → 2단계 데이터/본문/주기.
 /// - 편집(wizard=false): 한 화면에 모두 표시.
-/// 컬럼명을 드래그(또는 탭)해서 발송기준일/제목/본문에 넣는다.
+/// 컬럼명을 드래그(또는 탭)해서 발송기준일·제목·본문에 넣는다. 발신자는 항상 본인 계정.
 class MailSchedulerForm extends ConsumerStatefulWidget {
   final String initialName;
   final Map<String, dynamic> initialConfig;
@@ -35,7 +36,6 @@ class MailSchedulerForm extends ConsumerStatefulWidget {
 class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
   final _name = TextEditingController();
   final _fileUrl = TextEditingController();
-  final _sender = TextEditingController();
   final _recipient = TextEditingController();
   final _subject = TextEditingController();
   final _body = TextEditingController();
@@ -52,6 +52,9 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
 
   int _step = 0; // wizard 단계
   String? _stepError;
+  String? _dataError;
+
+  String get _senderEmail => ref.read(currentUserProvider)?.email ?? '';
 
   @override
   void initState() {
@@ -59,7 +62,6 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
     final c = widget.initialConfig;
     _name.text = widget.initialName;
     _fileUrl.text = (c['sharepoint_file_url'] ?? '').toString();
-    _sender.text = (c['mail_sender'] ?? '').toString();
     _recipient.text = (c['recipient_email'] ?? '').toString();
     _subject.text = (c['subject_template'] ?? '').toString();
     _body.text = (c['body_template'] ?? '').toString();
@@ -76,7 +78,6 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
       if (_bodyFocus.hasFocus) _lastFocused = 'body';
     });
 
-    // 편집 모드: 기존 URL로 컬럼 즉시 로드
     if (!widget.wizard && _fileUrl.text.trim().isNotEmpty) {
       _loadColumns();
     }
@@ -84,7 +85,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _fileUrl, _sender, _recipient, _subject, _body]) {
+    for (final c in [_name, _fileUrl, _recipient, _subject, _body]) {
       c.dispose();
     }
     _subjectFocus.dispose();
@@ -111,9 +112,9 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
 
   Map<String, dynamic> _buildConfig() => {
         'sharepoint_file_url': _fileUrl.text.trim(),
-        'mail_sender': _sender.text.trim(),
+        'mail_sender': _senderEmail, // 발신자는 항상 본인 계정
         'recipient_email': _recipient.text.trim(),
-        'alert_email': _sender.text.trim(), // 누락 알림은 항상 발신자
+        'alert_email': _senderEmail,
         'date_column': _dateColumn ?? '',
         'subject_template': _subject.text,
         'body_template': _body.text,
@@ -123,13 +124,37 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
 
   bool get _step1Valid =>
       _fileUrl.text.trim().isNotEmpty &&
-      _sender.text.trim().isNotEmpty &&
       _recipient.text.trim().isNotEmpty &&
       _name.text.trim().isNotEmpty;
 
+  /// {{ }} 토큰 형식 및 데이터명 유효성 검사.
+  String? _tokenError(String label, String text) {
+    if (!text.contains('{')) return null;
+    final re = RegExp(r'\{\{\s*([^{}]*?)\s*\}\}');
+    final matches = re.allMatches(text).toList();
+    final stripped = text.replaceAll(re, '');
+    if (stripped.contains('{') || stripped.contains('}')) {
+      return '$label의 {{ }} 형식이 올바르지 않습니다';
+    }
+    const specials = {'오늘', 'today', '날짜'};
+    for (final m in matches) {
+      final name = m.group(1)!.trim();
+      if (name.isEmpty) return '$label에 빈 데이터 태그({{}})가 있습니다';
+      if (_columns.isNotEmpty && !specials.contains(name) && !_columns.contains(name)) {
+        return '$label에 사용할 수 없는 데이터명이 있습니다: "$name"';
+      }
+    }
+    return null;
+  }
+
+  String? _validate() {
+    if (!_step1Valid) return '이름·참조 파일 URL·수신자 이메일을 모두 입력하세요';
+    return _tokenError('메일 제목', _subject.text) ?? _tokenError('메일 작성 내용', _body.text);
+  }
+
   Future<void> _goStep2() async {
     if (!_step1Valid) {
-      setState(() => _stepError = '이름·참조 파일 URL·발신자·수신자를 모두 입력하세요');
+      setState(() => _stepError = '이름·참조 파일 URL·수신자 이메일을 모두 입력하세요');
       return;
     }
     setState(() => _stepError = null);
@@ -138,10 +163,15 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
   }
 
   void _submit() {
+    final err = _validate();
+    if (err != null) {
+      setState(() => _dataError = err);
+      return;
+    }
+    setState(() => _dataError = null);
     widget.onSubmit(_name.text.trim(), _buildConfig());
   }
 
-  // ── 텍스트필드 커서 위치에 {{컬럼}} 삽입 ──
   void _insertToken(TextEditingController c, String col) {
     final token = '{{$col}}';
     final text = c.text;
@@ -167,14 +197,18 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
     if (widget.wizard) {
       return _step == 0 ? _stepOne() : _stepTwo();
     }
-    // 편집 모드: 전부 표시
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _note(),
           _basicFields(),
           const Divider(height: 28),
           _dataSection(),
+          if (_dataError != null) ...[
+            const SizedBox(height: 10),
+            Text(_dataError!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
+          ],
           const SizedBox(height: 16),
           Row(children: [
             if (widget.onDelete != null)
@@ -184,17 +218,30 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
                 label: const Text('삭제'),
               ),
             const Spacer(),
-            FilledButton(
-              onPressed: widget.busy ? null : _submit,
-              child: Text(widget.submitLabel),
-            ),
+            FilledButton(onPressed: widget.busy ? null : _submit, child: Text(widget.submitLabel)),
           ]),
         ],
       ),
     );
   }
 
-  // ── 1단계 ──
+  Widget _note() => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F4FD),
+          borderRadius: BorderRadius.circular(kRadius),
+        ),
+        child: const Row(children: [
+          Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF0563A5)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text('설정은 생성 후에도 언제든 변경할 수 있어요. (추후 변경 가능)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0563A5))),
+          ),
+        ]),
+      );
+
   Widget _stepOne() {
     return SingleChildScrollView(
       child: Column(
@@ -202,10 +249,11 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         children: [
           const _StepBadge(step: 1, title: '기본 정보'),
           const SizedBox(height: 12),
+          _note(),
           _basicFields(),
           if (_stepError != null) ...[
             const SizedBox(height: 8),
-            Text(_stepError!, style: const TextStyle(color: Colors.red)),
+            Text(_stepError!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
           ],
           const SizedBox(height: 20),
           FilledButton(
@@ -223,13 +271,20 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _tf(_name, '이름', hint: '예: 세금계산서 발행 알림'),
-          _tf(_fileUrl, '참조 파일 URL', hint: 'SharePoint 공유 xlsx 링크'),
-          _tf(_sender, '발신자 이메일', hint: 'name@llsollu.com'),
+          _tf(_fileUrl, '참조 파일 URL (엑셀 표 형식)', hint: 'SharePoint 공유 xlsx 링크'),
           _tf(_recipient, '수신자 이메일'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(children: [
+              const Icon(Icons.send_rounded, size: 16, color: AppColors.muted),
+              const SizedBox(width: 6),
+              Text('발신 계정: ${_senderEmail.isEmpty ? '본인 계정' : _senderEmail} (본인 계정으로 발송)',
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
+            ]),
+          ),
         ],
       );
 
-  // ── 2단계 ──
   Widget _stepTwo() {
     return SingleChildScrollView(
       child: Column(
@@ -238,18 +293,17 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
           const _StepBadge(step: 2, title: '데이터 · 주기 · 본문'),
           const SizedBox(height: 12),
           _dataSection(),
+          if (_dataError != null) ...[
+            const SizedBox(height: 10),
+            Text(_dataError!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
+          ],
           const SizedBox(height: 20),
           Row(children: [
-            TextButton(
-              onPressed: widget.busy ? null : () => setState(() => _step = 0),
-              child: const Text('이전'),
-            ),
+            TextButton(onPressed: widget.busy ? null : () => setState(() => _step = 0), child: const Text('이전')),
             const Spacer(),
             FilledButton(
               onPressed: widget.busy ? null : _submit,
-              child: widget.busy
-                  ? const Text('처리 중…')
-                  : Text(widget.submitLabel),
+              child: widget.busy ? const Text('처리 중…') : Text(widget.submitLabel),
             ),
           ]),
         ],
@@ -261,59 +315,50 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 컬럼 팔레트
         Row(
           children: [
-            const Text('사용 가능한 데이터', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('사용 가능한 데이터', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             const SizedBox(width: 8),
             IconButton(
               tooltip: '컬럼 다시 불러오기',
-              icon: const Icon(Icons.refresh, size: 18),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
               onPressed: _loadingCols ? null : _loadColumns,
             ),
           ],
         ),
         const Text('아래 항목을 드래그(또는 탭)해서 발송기준일·제목·본문에 넣으세요',
-            style: TextStyle(fontSize: 12, color: Colors.black54)),
+            style: TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         if (_loadingCols)
           const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator())
         else if (_colsError != null)
-          Text(_colsError!, style: const TextStyle(color: Colors.red))
+          Text(_colsError!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600))
         else if (_columns.isEmpty)
           const Text('컬럼이 없습니다. 참조 파일 URL을 확인하세요.',
-              style: TextStyle(color: Colors.black54))
+              style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w500))
         else
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [for (final c in _columns) _columnChip(c)],
-          ),
+          Wrap(spacing: 6, runSpacing: 6, children: [for (final c in _columns) _columnChip(c)]),
         const Divider(height: 28),
 
-        // 발송기준일
-        const Text('발송기준일', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('발송기준일(발송 규칙 데이터)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         const SizedBox(height: 6),
         _dateDropTarget(),
         const SizedBox(height: 4),
-        const Text('입력하지 않으면 확인 주기마다 발송',
-            style: TextStyle(fontSize: 12, color: Colors.black54)),
+        const Text('입력하지 않으면 규칙 확인 주기마다 발송',
+            style: TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
         const SizedBox(height: 20),
 
-        // 확인 주기
-        const Text('확인 주기', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('규칙 확인 주기', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         const SizedBox(height: 6),
         _scheduleBuilder(),
         const SizedBox(height: 20),
 
-        // 제목
-        const Text('메일 제목', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('메일 제목(드래그로 데이터 삽입 가능)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         const SizedBox(height: 6),
         _dropField(_subject, _subjectFocus, hint: '예: [{{거래처}}] 발행 요청', maxLines: 1),
         const SizedBox(height: 16),
 
-        // 본문
-        const Text('메일 작성 내용', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('메일 작성 내용', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         const SizedBox(height: 6),
         _dropField(_body, _bodyFocus,
             hint: '본문을 작성하고, 원하는 위치에 데이터를 드래그해 넣으세요.\n예: 안녕하세요, {{거래처}} 담당자님',
@@ -325,7 +370,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
   Widget _columnChip(String col) {
     final chip = Chip(
       label: Text(col),
-      backgroundColor: Colors.blue.shade50,
+      backgroundColor: const Color(0xFFE8F4FD),
       visualDensity: VisualDensity.compact,
     );
     return Draggable<String>(
@@ -344,16 +389,16 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: active ? Colors.blue : Colors.grey),
-            borderRadius: BorderRadius.circular(6),
-            color: active ? Colors.blue.shade50 : null,
+            border: Border.all(color: active ? AppColors.primary : AppColors.line),
+            borderRadius: BorderRadius.circular(kRadius),
+            color: active ? const Color(0xFFE8F4FD) : null,
           ),
           child: _dateColumn == null
-              ? const Text('드래그해서 입력', style: TextStyle(color: Colors.black45))
+              ? const Text('드래그해서 입력', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w500))
               : Row(children: [
                   Chip(
                     label: Text(_dateColumn!),
-                    backgroundColor: Colors.blue.shade50,
+                    backgroundColor: const Color(0xFFE8F4FD),
                     onDeleted: () => setState(() => _dateColumn = null),
                   ),
                 ]),
@@ -362,8 +407,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
     );
   }
 
-  Widget _dropField(TextEditingController c, FocusNode focus,
-      {required String hint, required int maxLines}) {
+  Widget _dropField(TextEditingController c, FocusNode focus, {required String hint, required int maxLines}) {
     return DragTarget<String>(
       onAcceptWithDetails: (d) => _insertToken(c, d.data),
       builder: (context, candidate, rejected) {
@@ -373,16 +417,14 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
-            border: const OutlineInputBorder(),
             filled: candidate.isNotEmpty,
-            fillColor: Colors.blue.shade50,
+            fillColor: const Color(0xFFE8F4FD),
           ),
         );
       },
     );
   }
 
-  // ── 확인 주기 빌더 ──
   Widget _scheduleBuilder() {
     final kind = _schedule['kind'] ?? 'daily';
     return Column(
@@ -405,52 +447,28 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
               onChanged: (v) => setState(() => _schedule = {..._schedule, 'kind': v}),
             ),
             if (kind == 'weekly')
-              _dropdown<int>(
-                (_schedule['weekday'] ?? 1) as int,
-                [for (int i = 1; i <= 7; i++) i],
-                (i) => '${kWeekdayNames[i - 1]}요일',
-                (v) => setState(() => _schedule = {..._schedule, 'weekday': v}),
-              ),
+              _dropdown<int>((_schedule['weekday'] ?? 1) as int, [for (int i = 1; i <= 7; i++) i],
+                  (i) => '${kWeekdayNames[i - 1]}요일', (v) => setState(() => _schedule = {..._schedule, 'weekday': v})),
             if (kind == 'monthly')
-              _dropdown<int>(
-                (_schedule['day'] ?? 1) as int,
-                [for (int i = 1; i <= 31; i++) i],
-                (i) => '$i일',
-                (v) => setState(() => _schedule = {..._schedule, 'day': v}),
-              ),
+              _dropdown<int>((_schedule['day'] ?? 1) as int, [for (int i = 1; i <= 31; i++) i],
+                  (i) => '$i일', (v) => setState(() => _schedule = {..._schedule, 'day': v})),
             if (kind == 'daily' || kind == 'weekly' || kind == 'monthly') ...[
-              _dropdown<int>(
-                (_schedule['hour'] ?? 9) as int,
-                [for (int i = 0; i < 24; i++) i],
-                (i) => '${i.toString().padLeft(2, '0')}시',
-                (v) => setState(() => _schedule = {..._schedule, 'hour': v}),
-              ),
-              _dropdown<int>(
-                (_schedule['minute'] ?? 0) as int,
-                [for (int i = 0; i < 60; i++) i],
-                (i) => '${i.toString().padLeft(2, '0')}분',
-                (v) => setState(() => _schedule = {..._schedule, 'minute': v}),
-              ),
+              _dropdown<int>((_schedule['hour'] ?? 9) as int, [for (int i = 0; i < 24; i++) i],
+                  (i) => '${i.toString().padLeft(2, '0')}시', (v) => setState(() => _schedule = {..._schedule, 'hour': v})),
+              _dropdown<int>((_schedule['minute'] ?? 0) as int, [for (int i = 0; i < 60; i++) i],
+                  (i) => '${i.toString().padLeft(2, '0')}분', (v) => setState(() => _schedule = {..._schedule, 'minute': v})),
             ],
             if (kind == 'hourly')
-              _dropdown<int>(
-                (_schedule['minute'] ?? 0) as int,
-                [for (int i = 0; i < 60; i++) i],
-                (i) => '매시 ${i.toString().padLeft(2, '0')}분',
-                (v) => setState(() => _schedule = {..._schedule, 'minute': v}),
-              ),
+              _dropdown<int>((_schedule['minute'] ?? 0) as int, [for (int i = 0; i < 60; i++) i],
+                  (i) => '매시 ${i.toString().padLeft(2, '0')}분', (v) => setState(() => _schedule = {..._schedule, 'minute': v})),
             if (kind == 'minutely')
-              _dropdown<int>(
-                (_schedule['interval'] ?? 30) as int,
-                const [5, 10, 15, 20, 30, 60],
-                (i) => '$i분마다',
-                (v) => setState(() => _schedule = {..._schedule, 'interval': v}),
-              ),
+              _dropdown<int>((_schedule['interval'] ?? 30) as int, const [5, 10, 15, 20, 30, 60],
+                  (i) => '$i분마다', (v) => setState(() => _schedule = {..._schedule, 'interval': v})),
           ],
         ),
         const SizedBox(height: 6),
         Text('→ ${humanFromScheduleUi(_schedule)}',
-            style: const TextStyle(fontSize: 12, color: Colors.blue)),
+            style: const TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -470,11 +488,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         child: TextField(
           controller: c,
           onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            border: const OutlineInputBorder(),
-          ),
+          decoration: InputDecoration(labelText: label, hintText: hint),
         ),
       );
 }
@@ -487,11 +501,11 @@ class _StepBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        CircleAvatar(radius: 14, child: Text('$step')),
+        CircleAvatar(radius: 14, backgroundColor: AppColors.primary, child: Text('$step', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
         const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(width: 8),
-        Text('($step/2)', style: const TextStyle(color: Colors.black45)),
+        Text('($step/2)', style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
       ],
     );
   }

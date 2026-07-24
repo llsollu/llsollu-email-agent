@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
+import '../widgets/classifier_form.dart';
 import '../widgets/config_form.dart';
 import '../widgets/mail_scheduler_form.dart';
 
@@ -137,21 +138,30 @@ class _AddAgentScreenState extends ConsumerState<AddAgentScreen> {
   }
 
   Widget _configStep() {
-    // 메일 스케줄러는 전용 2단계 마법사 사용
-    if (_template!.key == 'mail_scheduler') {
+    // 전용 폼: 메일 스케줄러(2단계 마법사) / 분류·요약
+    if (_template!.key == 'mail_scheduler' || _template!.key == 'project_tracker') {
+      final isSched = _template!.key == 'mail_scheduler';
       return SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 620),
-            child: MailSchedulerForm(
-              initialName: _template!.name,
-              initialConfig: const {},
-              wizard: true,
-              busy: _busy,
-              submitLabel: '생성',
-              onSubmit: (name, config) => _createWith(name, config, const {}),
-            ),
+            child: isSched
+                ? MailSchedulerForm(
+                    initialName: _template!.name,
+                    initialConfig: const {},
+                    wizard: true,
+                    busy: _busy,
+                    submitLabel: '생성',
+                    onSubmit: (name, config) => _createWith(name, config, const {}),
+                  )
+                : ClassifierForm(
+                    initialName: _template!.name,
+                    initialConfig: const {},
+                    busy: _busy,
+                    submitLabel: '생성',
+                    onSubmit: (name, config) => _createWith(name, config, const {}),
+                  ),
           ),
         ),
       );

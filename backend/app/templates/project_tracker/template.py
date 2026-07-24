@@ -28,8 +28,11 @@ class ProjectTrackerTemplate(BaseTemplate):
         return [
             ConfigField("mailbox", "대상 메일함", "email", required=True,
                         help="분류할 메일을 수신하는 회사 메일 주소"),
-            ConfigField("client_hints", "고객사 힌트", "text", required=False,
-                        help="분류를 도울 고객사명 목록(선택, 쉼표 구분)"),
+            ConfigField("categories", "메일 분류 카테고리", "string", required=False,
+                        help="쉼표로 구분. 예: 제안,계약,개발,납품,유지보수,문의"),
+            ConfigField("card_title_field", "요약 카드 타이틀", "select", required=False,
+                        default="client", options=["client", "category", "title"],
+                        help="카드에 표시할 제목: 고객사/분류/요약 제목"),
         ]
 
     async def on_setup(self, ctx: SetupContext) -> None:
@@ -64,20 +67,24 @@ class ProjectTrackerTemplate(BaseTemplate):
             or email.get("from_address") or ""
         body = (email.get("body") or {}).get("content") or email.get("bodyText") or email.get("bodyPreview") or ""
 
+        categories = _categories(ctx.config)
         cls = await ctx.llm.complete_json(SYSTEM, USER_TMPL.format(
-            subject=subject, from_address=from_address, body=body[:8000]))
+            subject=subject, from_address=from_address, body=body[:8000],
+            categories=", ".join(categories)))
 
         client_name = cls.get("client_name")
         project_title = cls.get("project_title")
         summary = cls.get("summary") or ""
-        ctx.log("classified", client=client_name, project=project_title)
+        category = cls.get("category")
+        ctx.log("classified", client=client_name, project=project_title, category=category)
 
         # 드라이런: 분류 결과만 확인하고 DB에는 반영하지 않음.
         if ctx.dry_run:
-            ctx.log("dry_run", subject=subject, client=client_name, project=project_title, summary=summary)
+            ctx.log("dry_run", subject=subject, client=client_name, project=project_title,
+                    category=category, summary=summary)
             return RunResult(ok=True, stats={
                 "processed": 1, "dry_run": True,
-                "client": client_name, "project": project_title, "summary": summary,
+                "client": client_name, "project": project_title, "category": category, "summary": summary,
             })
 
         # 메일 로그 적재
@@ -117,14 +124,14 @@ class ProjectTrackerTemplate(BaseTemplate):
         if project is None:
             project = Project(
                 agent_id=ctx.agent_id, client_name=client_name, title=title,
-                status="active", phase=cls.get("phase"),
+                status="active", category=cls.get("category"),
                 latest_update=cls.get("summary"), last_activity_at=now,
             )
             ctx.db.add(project)
             await ctx.db.flush()
         else:
-            if cls.get("phase"):
-                project.phase = cls["phase"]
+            if cls.get("category"):
+                project.category = cls["category"]
             project.latest_update = cls.get("summary")
             project.last_activity_at = now
 
@@ -140,6 +147,15 @@ class ProjectTrackerTemplate(BaseTemplate):
             ))
             ctx.log("issue_created", type=issue.get("type"))
         return project.id
+
+
+DEFAULT_CATEGORIES = ["제안", "계약", "개발", "납품", "유지보수", "문의", "기타"]
+
+
+def _categories(config: dict) -> list[str]:
+    raw = (config.get("categories") or "").strip()
+    cats = [c.strip() for c in raw.split(",") if c.strip()]
+    return cats or DEFAULT_CATEGORIES
 
 
 def _parse_dt(value: str | None) -> datetime | None:

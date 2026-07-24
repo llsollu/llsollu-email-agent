@@ -130,7 +130,7 @@ class ProjectOut(BaseModel):
     client_name: str
     title: str
     status: str
-    phase: str | None = None
+    category: str | None = None
     priority: str
     latest_update: str | None = None
     updated_at: datetime | None = None
