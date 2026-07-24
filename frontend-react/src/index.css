@@ -1,39 +1,81 @@
 @import "tailwindcss";
 
-/* ── 새 스타트업 테마 토큰 (docs/07 §3.1) ──
-   비비드 바이올렛 + 코랄/민트 악센트, 밝은 오프화이트, 큰 라운드. */
-@theme {
-  --color-primary: #6d5ef6;
-  --color-primary-hover: #5b4be0;
-  --color-accent: #ff7a59;
-  --color-mint: #2dd4bf;
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-  --color-bg: #fbfaff;
-  --color-surface: #ffffff;
-  --color-ink: #1a1a2e;
-  --color-muted: #6b7280;
-  --color-line: #ececf5;
+/* 시맨틱 색은 CSS 변수로 두고 라이트/다크에서 값만 교체 → 유틸리티가 자동으로 모드 적응. */
+:root {
+  --bg: #f6fbfa;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --ink: #132a2e;
+  --muted: #5e7076;
+  --line: #e4efec;
 
-  --color-storyboard: #8b5cf6;
-  --color-active: #22c55e;
-  --color-onhold: #f59e0b;
-  --color-completed: #64748b;
-  --color-cancelled: #f43f5e;
+  --primary: #14b8a6;
+  --primary-hover: #0d9488;
+  --brand2: #0ea5e9;
+  --accent: #ff6b57;
+  --amber: #fbbf24;
+
+  --st-storyboard: #0ea5e9;
+  --st-active: #22c55e;
+  --st-onhold: #f59e0b;
+  --st-completed: #64748b;
+  --st-cancelled: #f43f5e;
+
+  --shadow: 0 6px 24px rgba(20, 184, 166, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1a1b; --surface: #15262a; --raised: #182c30;
+    --ink: #eaf6f3; --muted: #93aaa9; --line: #25403f;
+    --shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1a1b; --surface: #15262a; --raised: #182c30;
+  --ink: #eaf6f3; --muted: #93aaa9; --line: #25403f;
+  --shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-brand2: var(--brand2);
+  --color-accent: var(--accent);
+  --color-amber: var(--amber);
+  --color-storyboard: var(--st-storyboard);
+  --color-active: var(--st-active);
+  --color-onhold: var(--st-onhold);
+  --color-completed: var(--st-completed);
+  --color-cancelled: var(--st-cancelled);
 
   --font-sans: "Pretendard", "Segoe UI", -apple-system, "Apple SD Gothic Neo",
     "Malgun Gothic", sans-serif;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background: var(--color-bg);
-  color: var(--color-ink);
+  background: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+/* 로그인 배경 블롭 애니메이션 */
+@keyframes blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(6%, 8%) scale(1.08); }
+  66% { transform: translate(-5%, 4%) scale(0.96); }
+}
+.blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.55; animation: blob 18s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .blob { animation: none; } }
