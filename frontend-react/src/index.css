@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* ── 새 스타트업 테마 토큰 (docs/07 §3.1) ──
+   비비드 바이올렛 + 코랄/민트 악센트, 밝은 오프화이트, 큰 라운드. */
+@theme {
+  --color-primary: #6d5ef6;
+  --color-primary-hover: #5b4be0;
+  --color-accent: #ff7a59;
+  --color-mint: #2dd4bf;
+
+  --color-bg: #fbfaff;
+  --color-surface: #ffffff;
+  --color-ink: #1a1a2e;
+  --color-muted: #6b7280;
+  --color-line: #ececf5;
+
+  --color-storyboard: #8b5cf6;
+  --color-active: #22c55e;
+  --color-onhold: #f59e0b;
+  --color-completed: #64748b;
+  --color-cancelled: #f43f5e;
+
+  --font-sans: "Pretendard", "Segoe UI", -apple-system, "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
