@@ -60,9 +60,9 @@ async def check_email(body: CheckEmailRequest, db: AsyncSession = Depends(get_db
     email = body.email.lower()
     res = await db.execute(select(User).where(User.email == email))
     user = res.scalar_one_or_none()
-    # DB에 계정이 있으면(비밀번호 유무와 무관) 항상 비밀번호 검증 경로로 → 로그인/실패만.
-    # 비밀번호 설정창(needs_setup)은 DB에 아예 없는 신규 회사 계정에만 나온다.
-    if user is not None:
+    # 비밀번호가 설정된 계정만 로그인 경로(existing). 계정이 없거나 비밀번호가 비어 있으면
+    # (사내 계정일 때) 비밀번호 설정창(needs_setup) 으로 → 스스로 비밀번호를 설정할 수 있다.
+    if user is not None and user.password_hash:
         return CheckEmailResponse(status="existing", display_name=user.display_name)
     if not _domain_ok(email):
         return CheckEmailResponse(status="not_company")
