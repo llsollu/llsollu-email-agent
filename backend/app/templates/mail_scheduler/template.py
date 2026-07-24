@@ -34,7 +34,10 @@ class MailSchedulerTemplate(BaseTemplate):
         return [
             ConfigField("sharepoint_file_url", "참조 파일 URL", "url", required=True),
             ConfigField("mail_sender", "발신자 이메일", "email", required=True),
-            ConfigField("recipient_email", "수신자 이메일", "email", required=True),
+            ConfigField("recipient_email", "수신자 이메일", "string", required=True,
+                        help="쉼표로 여러 명 지정 가능"),
+            ConfigField("cc_email", "참조 이메일", "string", required=False,
+                        help="쉼표로 여러 명 지정 가능(선택)"),
             ConfigField("date_column", "발송기준일(컬럼명)", "string", required=False,
                         help="비우면 확인 주기마다 전체 발송"),
             ConfigField("cron", "확인 주기(cron)", "cron", required=False, default="0 9 * * *"),
@@ -50,6 +53,7 @@ class MailSchedulerTemplate(BaseTemplate):
     async def handle(self, ctx: RunContext) -> RunResult:
         cfg = ctx.config
         recipient = cfg["recipient_email"]
+        cc = cfg.get("cc_email") or ""
         sender = cfg["mail_sender"]
         date_column = (cfg.get("date_column") or "").strip()
         subject_tmpl = cfg.get("subject_template") or ""
@@ -72,11 +76,11 @@ class MailSchedulerTemplate(BaseTemplate):
             body = eb.render(body_tmpl, row, today)
 
             if ctx.dry_run:
-                ctx.log("dry_run", to=recipient, subject=subject)
+                ctx.log("dry_run", to=recipient, cc=cc, subject=subject)
                 continue
 
             try:
-                await ctx.graph.send_mail(sender, recipient, subject, body)
+                await ctx.graph.send_mail(sender, recipient, subject, body, cc=cc)
                 sent += 1
                 ctx.db.add(SentRecord(agent_id=ctx.agent_id, target=recipient,
                                       subject=subject, status="sent"))

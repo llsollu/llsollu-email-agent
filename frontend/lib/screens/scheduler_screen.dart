@@ -70,6 +70,8 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
                     _kv('참조 파일 URL', cfg['sharepoint_file_url'] ?? '-'),
                     _kv('발신자', cfg['mail_sender'] ?? '-'),
                     _kv('수신자', cfg['recipient_email'] ?? '-'),
+                    if ((cfg['cc_email']?.toString().isNotEmpty ?? false))
+                      _kv('참조', cfg['cc_email']),
                     _kv('발송기준일',
                         (cfg['date_column']?.toString().isNotEmpty ?? false)
                             ? cfg['date_column']

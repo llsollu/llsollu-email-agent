@@ -72,15 +72,27 @@ class GraphClient:
             r.raise_for_status()
             return r.json()
 
-    async def send_mail(self, sender: str, to: str, subject: str, body_text: str) -> None:
-        payload = {
-            "message": {
-                "subject": subject,
-                "body": {"contentType": "Text", "content": body_text},
-                "toRecipients": [{"emailAddress": {"address": to}}],
-            },
-            "saveToSentItems": True,
+    @staticmethod
+    def _recipients(value: str | list[str] | None) -> list[dict]:
+        """쉼표 구분 문자열 또는 리스트 → Graph recipients 배열."""
+        if not value:
+            return []
+        items = value if isinstance(value, list) else str(value).split(",")
+        return [{"emailAddress": {"address": a.strip()}} for a in items if a.strip()]
+
+    async def send_mail(
+        self, sender: str, to: str | list[str], subject: str, body_text: str,
+        cc: str | list[str] | None = None,
+    ) -> None:
+        message: dict = {
+            "subject": subject,
+            "body": {"contentType": "Text", "content": body_text},
+            "toRecipients": self._recipients(to),
         }
+        cc_list = self._recipients(cc)
+        if cc_list:
+            message["ccRecipients"] = cc_list
+        payload = {"message": message, "saveToSentItems": True}
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.post(f"{_GRAPH}/users/{sender}/sendMail", headers=await self._headers(), json=payload)
             if r.status_code >= 400:

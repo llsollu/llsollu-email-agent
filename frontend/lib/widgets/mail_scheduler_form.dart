@@ -37,8 +37,17 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
   final _name = TextEditingController();
   final _fileUrl = TextEditingController();
   final _recipient = TextEditingController();
+  final _cc = TextEditingController();
   final _subject = TextEditingController();
   final _body = TextEditingController();
+
+  // 현재 날짜 기준 특수 데이터(드래그 칩) — 표시 라벨 → 토큰명
+  static const _specialChips = {
+    '오늘 날짜': '오늘',
+    '이번 달 데이터': '이번달',
+    '이번 달(월)': '월',
+  };
+  static const _specialTokens = {'오늘', 'today', '날짜', '이번달', '현재월', '이달', '이번달데이터', '월', '이번달월', '현재월숫자'};
   final _subjectFocus = FocusNode();
   final _bodyFocus = FocusNode();
   String _lastFocused = 'body';
@@ -63,6 +72,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
     _name.text = widget.initialName;
     _fileUrl.text = (c['sharepoint_file_url'] ?? '').toString();
     _recipient.text = (c['recipient_email'] ?? '').toString();
+    _cc.text = (c['cc_email'] ?? '').toString();
     _subject.text = (c['subject_template'] ?? '').toString();
     _body.text = (c['body_template'] ?? '').toString();
     final dc = (c['date_column'] ?? '').toString();
@@ -85,7 +95,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _fileUrl, _recipient, _subject, _body]) {
+    for (final c in [_name, _fileUrl, _recipient, _cc, _subject, _body]) {
       c.dispose();
     }
     _subjectFocus.dispose();
@@ -114,6 +124,7 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         'sharepoint_file_url': _fileUrl.text.trim(),
         'mail_sender': _senderEmail, // 발신자는 항상 본인 계정
         'recipient_email': _recipient.text.trim(),
+        'cc_email': _cc.text.trim(),
         'alert_email': _senderEmail,
         'date_column': _dateColumn ?? '',
         'subject_template': _subject.text,
@@ -136,11 +147,10 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
     if (stripped.contains('{') || stripped.contains('}')) {
       return '$label의 {{ }} 형식이 올바르지 않습니다';
     }
-    const specials = {'오늘', 'today', '날짜'};
     for (final m in matches) {
       final name = m.group(1)!.trim();
       if (name.isEmpty) return '$label에 빈 데이터 태그({{}})가 있습니다';
-      if (_columns.isNotEmpty && !specials.contains(name) && !_columns.contains(name)) {
+      if (_columns.isNotEmpty && !_specialTokens.contains(name) && !_columns.contains(name)) {
         return '$label에 사용할 수 없는 데이터명이 있습니다: "$name"';
       }
     }
@@ -272,7 +282,8 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         children: [
           _tf(_name, '이름', hint: '예: 세금계산서 발행 알림'),
           _tf(_fileUrl, '참조 파일 URL (엑셀 표 형식)', hint: 'SharePoint 공유 xlsx 링크'),
-          _tf(_recipient, '수신자 이메일'),
+          _tf(_recipient, '수신자 이메일 (쉼표로 여러 명)', hint: 'a@llsollu.com, b@llsollu.com'),
+          _tf(_cc, '참조 이메일 (쉼표로 여러 명, 선택)', hint: 'cc@llsollu.com'),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(children: [
@@ -329,6 +340,13 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
         const Text('아래 항목을 드래그(또는 탭)해서 발송기준일·제목·본문에 넣으세요',
             style: TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
+        // 현재 날짜 기준 특수 데이터
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final e in _specialChips.entries) _specialChip(e.key, e.value),
+        ]),
+        const Text('· "이번 달 데이터"는 발송월에 해당하는 월 컬럼(예: 7월이면 "7월") 값이 들어갑니다',
+            style: TextStyle(fontSize: 12.5, color: AppColors.muted, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 10),
         if (_loadingCols)
           const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator())
         else if (_colsError != null)
@@ -364,6 +382,22 @@ class _MailSchedulerFormState extends ConsumerState<MailSchedulerForm> {
             hint: '본문을 작성하고, 원하는 위치에 데이터를 드래그해 넣으세요.\n예: 안녕하세요, {{거래처}} 담당자님',
             maxLines: 8),
       ],
+    );
+  }
+
+  /// 현재 날짜 기준 특수 데이터 칩(드래그/탭 시 {{token}} 삽입).
+  Widget _specialChip(String label, String token) {
+    final chip = Chip(
+      avatar: const Icon(Icons.event_rounded, size: 16, color: Color(0xFF8A5A00)),
+      label: Text(label),
+      backgroundColor: const Color(0xFFFFF3CD),
+      visualDensity: VisualDensity.compact,
+    );
+    return Draggable<String>(
+      data: token,
+      feedback: Material(color: Colors.transparent, child: Chip(label: Text(label))),
+      childWhenDragging: Opacity(opacity: 0.4, child: chip),
+      child: InkWell(onTap: () => _insertToLastFocused(token), child: chip),
     );
   }
 
