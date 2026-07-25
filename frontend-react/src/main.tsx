@@ -4,8 +4,10 @@ import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-qu
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
-import { ApiError } from '@/lib/api'
+import { ApiError, bootAuth } from '@/lib/api'
 import { useAuth } from '@/store/auth'
+
+bootAuth() // 데스크톱: 저장된 Bearer 토큰 복원 후 렌더
 
 const queryClient = new QueryClient({
   // 세션 만료(401) 시 자동 로그아웃 → 로그인 화면으로.

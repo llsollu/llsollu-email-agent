@@ -35,9 +35,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    # Flutter web 빌드를 이 경로에 두면 API가 / 에서 서빙
+    # React(Vite) 빌드를 이 경로에 두면 API가 / 에서 SPA로 서빙
     volumes:
-      - ../frontend/build/web:/app/web:ro
+      - ../frontend-react/dist:/app/web:ro
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
   worker:

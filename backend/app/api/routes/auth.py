@@ -46,13 +46,20 @@ async def _is_company_user(email: str) -> bool:
         raise HTTPException(status_code=502, detail=f"사내 계정 확인 중 오류: {e}") from e
 
 
-def _issue_session(response: Response, user: User, remember: bool) -> None:
+def _issue_session(response: Response, user: User, remember: bool) -> str:
     token = create_session_token(email=user.email, sub=str(user.id))
     # remember=True 면 장기 쿠키(max_age), 아니면 세션 쿠키(브라우저 종료 시 삭제).
     response.set_cookie(
         SESSION_COOKIE, token, httponly=True, samesite="lax",
         max_age=(settings.jwt_expire_hours * 3600 if remember else None),
     )
+    return token
+
+
+def _user_out(user: User, token: str) -> UserOut:
+    out = UserOut.model_validate(user)
+    out.access_token = token  # 데스크톱용; 웹은 쿠키를 쓰므로 무시
+    return out
 
 
 @router.post("/auth/check-email", response_model=CheckEmailResponse)
@@ -85,8 +92,8 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
-    _issue_session(response, user, body.remember)
-    return user
+    token = _issue_session(response, user, body.remember)
+    return _user_out(user, token)
 
 
 @router.post("/auth/register", response_model=UserOut)
@@ -114,8 +121,8 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     await db.flush()
     await db.commit()
     await db.refresh(user)
-    _issue_session(response, user, body.remember)
-    return user
+    token = _issue_session(response, user, body.remember)
+    return _user_out(user, token)
 
 
 @router.post("/auth/logout")

@@ -275,3 +275,22 @@ frontend-react/                # 기존 frontend/(Flutter)와 병행, 완료 후
 | 2 | UI 라이브러리 | **Tailwind CSS + shadcn/ui**(Radix 기반, 코드 소유·자유 테마). |
 | 3 | 전환 중 노출 | **로컬에서만 검증 → 완성 후 단일 컷오버.** 서버 `/next` 병행 노출 없음. |
 | 4 | 디자인 테마 | **Office 블루 폐기 → 산뜻·발랄한 스타트업 신규 테마**(§3.1). |
+
+---
+
+## 13. 진행 현황 (완료: 2026-07-24)
+
+마이그레이션 완료. `frontend/`(Flutter) 제거, `frontend-react/`(React+Tauri)로 전환.
+
+- **Phase 0~4 완료**: 스캐폴딩·테마(프레시 틸 확정), 인증·앱셸, 칸반, 스케줄러+생성/설정 폼, 파리티 마감.
+- **Phase 5 완료(웹 컷오버)**:
+  - 백엔드 `get_current_user` 가 쿠키 + `Authorization: Bearer` 둘 다 허용, 로그인/가입 응답에 `access_token` 포함.
+  - `main.py` SPA 정적 폴백(딥링크 → index.html, `/api`는 실제 404) + Vite/Tauri CORS 허용.
+  - `deploy/docker-compose.yml` 정적 볼륨을 `../frontend-react/dist` 로 교체 → `:8000` 이 React 서빙.
+- **데스크톱(Tauri)**: 토큰 저장/복원 + CORS 준비 완료. 실제 설치본 빌드는 Windows/CI(webkit·Rust 필요)에서 수행.
+- **테마**: 프레시 틸(#14B8A6) + 코랄(#FF6B57), 라이트/다크.
+
+### 남은 운영 작업
+- 데스크톱 배포: Windows(WebView2)/CI에서 `VITE_API_BASE=http://<사내서버>:8000 npm run tauri:build`.
+- 웹 배포 갱신 시: `cd frontend-react && npm ci && npm run build` 후 api 컨테이너 재기동(바인드 마운트).
+- (선택) `frontend-react/` → `frontend/` 로 리네임 정리 시 docker-compose 경로도 함께 변경.

@@ -5,6 +5,7 @@ export interface UserInfo {
   email: string
   display_name?: string | null
   department?: string | null
+  access_token?: string | null
 }
 
 export interface TemplateInfo {

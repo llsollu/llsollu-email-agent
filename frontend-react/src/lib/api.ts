@@ -18,6 +18,31 @@ export function setAuthToken(t: string | null) {
   authToken = t
 }
 
+const TOKEN_KEY = 'access_token'
+export function isTauri(): boolean {
+  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+}
+/** 앱 시작 시(데스크톱) 저장된 토큰 복원. */
+export function bootAuth() {
+  if (isTauri()) {
+    const t = localStorage.getItem(TOKEN_KEY)
+    if (t) setAuthToken(t)
+  }
+}
+function captureToken<T extends { access_token?: string | null }>(u: T): T {
+  if (isTauri() && u.access_token) {
+    setAuthToken(u.access_token)
+    localStorage.setItem(TOKEN_KEY, u.access_token)
+  }
+  return u
+}
+function clearToken() {
+  if (isTauri()) {
+    setAuthToken(null)
+    localStorage.removeItem(TOKEN_KEY)
+  }
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -55,10 +80,10 @@ export const api = {
   checkEmail: (email: string) =>
     post<{ status: CheckEmailStatus; display_name?: string | null }>('/auth/check-email', { email }),
   login: (email: string, password: string, remember: boolean) =>
-    post<UserInfo>('/auth/login', { email, password, remember }),
+    post<UserInfo>('/auth/login', { email, password, remember }).then(captureToken),
   register: (email: string, password: string, remember: boolean) =>
-    post<UserInfo>('/auth/register', { email, password, remember }),
-  logout: () => post<{ status: string }>('/auth/logout'),
+    post<UserInfo>('/auth/register', { email, password, remember }).then(captureToken),
+  logout: () => post<{ status: string }>('/auth/logout').finally(clearToken),
 
   // ── templates ──
   templates: () => req<TemplateInfo[]>('/templates'),
