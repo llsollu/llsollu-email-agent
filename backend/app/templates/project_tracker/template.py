@@ -8,12 +8,18 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.framework.base import BaseTemplate, ConfigField, TriggerSpec, ViewSpec
 from app.framework.context import RunContext, RunResult, SetupContext
 from app.models import Issue, MailRecord, Project
-from app.services.mail_analysis import analyze_email, get_or_analyze, resolve_categories, resolve_email
+from app.services.mail_analysis import (
+    analyze_email,
+    get_or_analyze,
+    resolve_categories,
+    resolve_email,
+    resolve_issue_types,
+)
 
 
 class ProjectTrackerTemplate(BaseTemplate):
@@ -54,7 +60,8 @@ class ProjectTrackerTemplate(BaseTemplate):
         # 드라이런: 저장 없이 분석 미리보기.
         if ctx.dry_run:
             cats = await resolve_categories(ctx.db, mailbox)
-            cls = await analyze_email(ctx.llm, email, cats)
+            itypes = await resolve_issue_types(ctx.db, mailbox)
+            cls = await analyze_email(ctx.llm, email, cats, itypes)
             ctx.log("dry_run", client=cls.get("client_name"), project=cls.get("project_title"),
                     category=cls.get("category"), summary=cls.get("summary"))
             return RunResult(ok=True, stats={
@@ -78,11 +85,11 @@ class ProjectTrackerTemplate(BaseTemplate):
         })
 
     async def _upsert_project(self, ctx: RunContext, rec: MailRecord):
+        """메일 1건 = 카드 1개. source_message_id 기준 멱등 업서트(같은 메일은 재실행해도 카드 1개)."""
         res = await ctx.db.execute(
             select(Project).where(
                 Project.agent_id == ctx.agent_id,
-                Project.client_name == rec.client_name,
-                Project.title == rec.project_title,
+                Project.source_message_id == rec.id,
             )
         )
         project = res.scalar_one_or_none()
@@ -97,13 +104,15 @@ class ProjectTrackerTemplate(BaseTemplate):
             ctx.db.add(project)
             await ctx.db.flush()
         else:
-            if rec.category:
-                project.category = rec.category
+            project.client_name = rec.client_name
+            project.title = rec.project_title
+            project.category = rec.category
             project.latest_update = rec.summary
             project.keywords = rec.keywords or []
             project.last_activity_at = now
-            project.source_message_id = rec.id
 
+        # 이 카드의 이슈는 해당 메일의 이슈 1건만 반영(재실행 시 교체 → 중복 방지).
+        await ctx.db.execute(delete(Issue).where(Issue.project_id == project.id))
         issue = rec.issue
         if issue:
             ctx.db.add(Issue(
