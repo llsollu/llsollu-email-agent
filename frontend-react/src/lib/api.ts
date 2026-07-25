@@ -2,9 +2,11 @@ import type {
   AgentInfo,
   CheckEmailStatus,
   ConfigField,
+  MailRecord,
   ProjectInfo,
   RunInfo,
   TemplateInfo,
+  TimelineEntry,
   UserInfo,
 } from './types'
 
@@ -109,6 +111,11 @@ export const api = {
   projects: (agentId: string) => req<ProjectInfo[]>(`/agents/${agentId}/projects`),
   setProjectStatus: (agentId: string, projectId: string, status: string) =>
     patch(`/agents/${agentId}/projects/${projectId}/status`, { status }),
+
+  // ── mail_timeline ──
+  timeline: (agentId: string) => req<TimelineEntry[]>(`/agents/${agentId}/timeline`),
+  message: (agentId: string, messageId: string) =>
+    req<MailRecord>(`/agents/${agentId}/messages/${messageId}`),
 
   // ── mail_scheduler ──
   runs: (agentId: string) => req<RunInfo[]>(`/agents/${agentId}/runs`),

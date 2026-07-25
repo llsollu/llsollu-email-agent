@@ -136,9 +136,35 @@ class ProjectOut(BaseModel):
     priority: str
     latest_update: str | None = None
     updated_at: datetime | None = None
+    source_message_id: uuid.UUID | None = None
 
     class Config:
         from_attributes = True
+
+
+class TimelineEntry(BaseModel):
+    id: uuid.UUID
+    client_name: str | None = None
+    project_title: str | None = None
+    category: str | None = None
+    subject: str | None = None
+    from_address: str | None = None
+    from_name: str | None = None
+    direction: str = "in"
+    received_at: datetime | None = None
+    summary: str | None = None
+    action_required: bool = False
+    issue: dict | None = None
+    points: list | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class MailRecordOut(TimelineEntry):
+    """원문 모달용 — 기본 정보 + 본문."""
+    mailbox: str
+    body_text: str | None = None
 
 
 class IssueOut(BaseModel):

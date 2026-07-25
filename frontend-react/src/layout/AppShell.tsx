@@ -59,7 +59,7 @@ export function AppShell() {
                       isActive ? 'bg-primary text-white' : 'bg-primary/10 text-primary',
                     )}
                   >
-                    {a.view_type === 'kanban' ? '분' : '발'}
+                    {a.view_type === 'kanban' ? '분' : a.view_type === 'timeline' ? '타' : '발'}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-bold">{a.name}</span>

@@ -3,6 +3,7 @@ from app.models.base import Base
 from app.models.email_log import EmailLog
 from app.models.issue import Issue
 from app.models.llm_job import LLMJob
+from app.models.mail import MailRecord
 from app.models.project import Project
 from app.models.run import AgentRun
 from app.models.schedule import Schedule
@@ -20,4 +21,5 @@ __all__ = [
     "Issue",
     "EmailLog",
     "SentRecord",
+    "MailRecord",
 ]

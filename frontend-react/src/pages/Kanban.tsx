@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import type { AgentInfo, ProjectInfo, RunInfo } from '@/lib/types'
 import { useMoveProject, useProjects } from '@/hooks/useProjects'
 import { ViewHeader } from '@/components/ViewHeader'
+import { SourceEmail } from '@/components/SourceEmail'
 import { useEscape } from '@/lib/useEscape'
 import { cn } from '@/lib/utils'
 
@@ -142,7 +143,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
         </DndContext>
       )}
 
-      {detail && <DetailModal p={detail} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal p={detail} agentId={agent.id} onClose={() => setDetail(null)} />}
     </div>
   )
 }
@@ -290,7 +291,7 @@ function Badge({ children, className }: { children: React.ReactNode; className?:
   return <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', className)}>{children}</span>
 }
 
-function DetailModal({ p, onClose }: { p: ProjectInfo; onClose: () => void }) {
+function DetailModal({ p, agentId, onClose }: { p: ProjectInfo; agentId: string; onClose: () => void }) {
   useEscape(onClose)
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6" onClick={onClose}>
@@ -320,6 +321,7 @@ function DetailModal({ p, onClose }: { p: ProjectInfo; onClose: () => void }) {
             ))
           )}
         </div>
+        {p.source_message_id && <SourceEmail agentId={agentId} messageId={p.source_message_id} />}
         <div className="mt-5 text-right">
           <button onClick={onClose} className="rounded-xl px-4 py-2 font-semibold text-muted hover:bg-line/50">닫기</button>
         </div>
