@@ -3,6 +3,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { loadSavedEmail, saveEmail, useAuth } from '@/store/auth'
 import { AnimatedBg } from '@/components/AnimatedBg'
+import { BrandIcon } from '@/components/AgentIcon'
 import { useEscape } from '@/lib/useEscape'
 
 export function Login() {
@@ -63,8 +64,8 @@ export function Login() {
     <div className="relative grid min-h-full place-items-center overflow-hidden bg-bg px-6">
       <AnimatedBg />
       <div className="relative w-full max-w-sm rounded-3xl border border-line bg-surface p-8 shadow-[var(--shadow)]">
-        <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-brand2 text-2xl font-black text-white shadow-lg shadow-primary/30">
-          L
+        <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-brand2 text-white shadow-lg shadow-primary/30">
+          <BrandIcon size={30} />
         </div>
         <h1 className="text-center text-2xl font-extrabold tracking-tight">LLSOLLU Email Agent</h1>
         <p className="mt-1 text-center text-sm font-medium text-muted">회사 이메일과 비밀번호로 로그인</p>

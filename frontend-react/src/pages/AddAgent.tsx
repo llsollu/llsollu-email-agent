@@ -7,6 +7,7 @@ import type { TemplateInfo } from '@/lib/types'
 import { MailSchedulerForm } from '@/forms/MailSchedulerForm'
 import { ClassifierForm } from '@/forms/ClassifierForm'
 import { TimelineForm } from '@/forms/TimelineForm'
+import { AgentIcon } from '@/components/AgentIcon'
 
 export function AddAgent() {
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates })
@@ -42,8 +43,8 @@ export function AddAgent() {
               {templates.data?.map((t) => (
                 <button key={t.key} onClick={() => setPicked(t)}
                   className="flex h-[210px] w-[290px] flex-col rounded-2xl border border-line bg-surface p-5 text-left transition hover:border-primary">
-                  <div className="grid h-[52px] w-[52px] place-items-center rounded-[14px] bg-gradient-to-br from-primary to-brand2 text-white text-xl font-black">
-                    {t.view_type === 'kanban' ? '분' : t.view_type === 'timeline' ? '타' : '발'}
+                  <div className="grid h-[52px] w-[52px] place-items-center rounded-[14px] bg-gradient-to-br from-primary to-brand2 text-white">
+                    <AgentIcon viewType={t.view_type} size={26} />
                   </div>
                   <div className="mt-4 text-base font-bold">{t.name}</div>
                   <p className="mt-2 line-clamp-3 flex-1 text-[13px] font-medium text-muted">{t.description}</p>

@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { LogOut, Plus } from 'lucide-react'
+import { AgentIcon, BrandIcon } from '@/components/AgentIcon'
 import { api } from '@/lib/api'
 import { useAuth } from '@/store/auth'
 import { useAgents } from '@/hooks/useAgents'
@@ -21,8 +22,8 @@ export function AppShell() {
     <div className="flex h-full">
       <aside className="flex w-72 flex-col border-r border-line bg-surface">
         <div className="flex items-center gap-3 px-5 pb-4 pt-6">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-primary to-brand2 text-lg font-black text-white">
-            L
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-primary to-brand2 text-white">
+            <BrandIcon size={22} />
           </div>
           <div className="min-w-0">
             <div className="text-base font-extrabold">Email Agent</div>
@@ -55,11 +56,11 @@ export function AppShell() {
                 <>
                   <span
                     className={cn(
-                      'grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-sm font-black',
+                      'grid h-9 w-9 shrink-0 place-items-center rounded-[10px]',
                       isActive ? 'bg-primary text-white' : 'bg-primary/10 text-primary',
                     )}
                   >
-                    {a.view_type === 'kanban' ? '분' : a.view_type === 'timeline' ? '타' : '발'}
+                    <AgentIcon viewType={a.view_type} size={18} />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-bold">{a.name}</span>
