@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import type { AgentInfo, ProjectInfo, RunInfo } from '@/lib/types'
 import { useMoveProject, useProjects } from '@/hooks/useProjects'
 import { ViewHeader } from '@/components/ViewHeader'
+import { useEscape } from '@/lib/useEscape'
 import { cn } from '@/lib/utils'
 
 const COLUMNS: [string, string, string][] = [
@@ -47,7 +48,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
   const [dragId, setDragId] = useState<string | null>(null)
 
   const titleField = (agent.config.card_title_field as string) || 'client'
-  const all = projects.data ?? []
+  const all = useMemo(() => projects.data ?? [], [projects.data])
 
   const categories = useMemo(
     () => [...new Set(all.map((p) => p.category).filter(Boolean) as string[])].sort(),
@@ -110,6 +111,13 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
 
       {projects.isLoading ? (
         <div className="grid flex-1 place-items-center text-muted">불러오는 중…</div>
+      ) : projects.isError ? (
+        <div className="grid flex-1 place-items-center">
+          <div className="text-center">
+            <p className="font-semibold text-cancelled">프로젝트를 불러오지 못했습니다</p>
+            <button onClick={() => projects.refetch()} className="mt-2 rounded-xl bg-primary px-4 py-2 font-bold text-white">다시 시도</button>
+          </div>
+        </div>
       ) : (
         <DndContext
           sensors={sensors}
@@ -283,6 +291,7 @@ function Badge({ children, className }: { children: React.ReactNode; className?:
 }
 
 function DetailModal({ p, onClose }: { p: ProjectInfo; onClose: () => void }) {
+  useEscape(onClose)
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6" onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow)]" onClick={(e) => e.stopPropagation()}>
@@ -395,6 +404,7 @@ function DryResult({ stats }: { stats: Record<string, unknown> }) {
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
+  useEscape(() => onClose?.())
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow)]" onClick={(e) => e.stopPropagation()}>

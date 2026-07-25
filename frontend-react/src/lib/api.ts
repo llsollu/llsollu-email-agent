@@ -18,15 +18,28 @@ export function setAuthToken(t: string | null) {
   authToken = t
 }
 
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { ...(opts.headers as Record<string, string>) }
   if (opts.body) headers['Content-Type'] = 'application/json'
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`
-  const r = await fetch(ROOT + path, { credentials: 'include', ...opts, headers })
+  let r: Response
+  try {
+    r = await fetch(ROOT + path, { credentials: 'include', ...opts, headers })
+  } catch {
+    throw new ApiError(0, '서버에 연결할 수 없습니다')
+  }
   const data = r.status === 204 ? null : await r.json().catch(() => null)
   if (!r.ok) {
     const detail = (data && (data.detail as string)) || `요청 실패 (HTTP ${r.status})`
-    throw new Error(detail)
+    throw new ApiError(r.status, detail)
   }
   return data as T
 }

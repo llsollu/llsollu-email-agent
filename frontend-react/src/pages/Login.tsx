@@ -3,6 +3,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { loadSavedEmail, saveEmail, useAuth } from '@/store/auth'
 import { AnimatedBg } from '@/components/AnimatedBg'
+import { useEscape } from '@/lib/useEscape'
 
 export function Login() {
   const setUser = useAuth((s) => s.setUser)
@@ -141,6 +142,7 @@ function PasswordSetup({
   const [pw, setPw] = useState(prefill)
   const [pw2, setPw2] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  useEscape(onCancel)
 
   function confirm() {
     if (pw.length < 4) return setErr('비밀번호는 4자 이상이어야 합니다')

@@ -22,7 +22,7 @@ function fmtKst(iso?: unknown) {
 export function Scheduler({ agent }: { agent: AgentInfo }) {
   const qc = useQueryClient()
   const cfg = agent.config as Record<string, unknown>
-  const runs = useQuery({ queryKey: ['runs', agent.id], queryFn: () => api.runs(agent.id) })
+  const runs = useQuery({ queryKey: ['runs', agent.id], queryFn: () => api.runs(agent.id), refetchInterval: 30_000 })
   const schedule = useQuery({ queryKey: ['schedule', agent.id], queryFn: () => api.schedule(agent.id) })
   const [toast, setToast] = useState<string | null>(null)
 
@@ -87,6 +87,8 @@ export function Scheduler({ agent }: { agent: AgentInfo }) {
         <div>
           <div className="mb-2 text-[15px] font-extrabold">최근 실행 로그</div>
           <div className="space-y-2">
+            {runs.isLoading && <p className="text-sm font-medium text-muted">불러오는 중…</p>}
+            {runs.isError && <p className="text-sm font-semibold text-cancelled">실행 로그를 불러오지 못했습니다</p>}
             {runs.data?.length === 0 && <p className="text-sm font-medium text-muted">아직 실행 이력이 없습니다</p>}
             {runs.data?.map((r) => <RunTile key={r.id} r={r} />)}
           </div>

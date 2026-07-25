@@ -1,12 +1,22 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
+import { ApiError } from '@/lib/api'
+import { useAuth } from '@/store/auth'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  // 세션 만료(401) 시 자동 로그아웃 → 로그인 화면으로.
+  queryCache: new QueryCache({
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 401) useAuth.getState().setUser(null)
+    },
+  }),
+  defaultOptions: {
+    queries: { retry: (count, err) => !(err instanceof ApiError && err.status === 401) && count < 1, refetchOnWindowFocus: false },
+  },
 })
 
 createRoot(document.getElementById('root')!).render(

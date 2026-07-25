@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import type { AgentInfo } from '@/lib/types'
 import { MailSchedulerForm } from '@/forms/MailSchedulerForm'
 import { ClassifierForm } from '@/forms/ClassifierForm'
+import { useEscape } from '@/lib/useEscape'
 
 export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
   const qc = useQueryClient()
@@ -13,6 +14,7 @@ export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDel, setConfirmDel] = useState(false)
+  useEscape(() => (confirmDel ? setConfirmDel(false) : onClose()))
 
   async function save(name: string, config: Record<string, unknown>) {
     setBusy(true)

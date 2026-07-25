@@ -71,6 +71,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* 키보드 포커스 표시(접근성) */
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+
 /* 로그인 배경 블롭 애니메이션 */
 @keyframes blob {
   0%, 100% { transform: translate(0, 0) scale(1); }

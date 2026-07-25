@@ -33,6 +33,12 @@ export function AppShell() {
         <div className="px-5 pb-2 pt-1 text-[13px] font-bold uppercase tracking-wide text-muted">내 에이전트</div>
         <nav className="flex-1 overflow-y-auto px-3">
           {agents.isLoading && <p className="px-3 py-2 text-sm text-muted">불러오는 중…</p>}
+          {agents.isError && (
+            <div className="px-3 py-2 text-sm text-cancelled">
+              목록을 불러오지 못했습니다.
+              <button onClick={() => agents.refetch()} className="ml-1 underline">다시 시도</button>
+            </div>
+          )}
           {agents.data?.length === 0 && <p className="px-3 py-2 text-sm text-muted">아직 에이전트가 없어요</p>}
           {agents.data?.map((a) => (
             <NavLink

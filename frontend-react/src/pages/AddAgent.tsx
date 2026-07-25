@@ -35,6 +35,8 @@ export function AddAgent() {
           <>
             <h1 className="text-2xl font-extrabold tracking-tight">어떤 에이전트를 만들까요?</h1>
             <p className="mt-1 text-sm font-medium text-muted">템플릿을 선택하면 설정 단계로 넘어갑니다</p>
+            {templates.isLoading && <p className="mt-6 text-sm text-muted">템플릿을 불러오는 중…</p>}
+            {templates.isError && <p className="mt-6 text-sm font-semibold text-cancelled">템플릿을 불러오지 못했습니다</p>}
             <div className="mt-6 flex flex-wrap gap-4">
               {templates.data?.map((t) => (
                 <button key={t.key} onClick={() => setPicked(t)}

@@ -3,7 +3,11 @@ import { api } from '@/lib/api'
 import type { ProjectInfo } from '@/lib/types'
 
 export function useProjects(agentId: string) {
-  return useQuery({ queryKey: ['projects', agentId], queryFn: () => api.projects(agentId) })
+  return useQuery({
+    queryKey: ['projects', agentId],
+    queryFn: () => api.projects(agentId),
+    refetchInterval: 60_000,
+  })
 }
 
 /** 상태 변경 — 낙관적 업데이트 + 실패 시 롤백. */
