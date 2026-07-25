@@ -18,7 +18,7 @@ from app.templates.project_tracker.prompts import SYSTEM, USER_TMPL
 
 class ProjectTrackerTemplate(BaseTemplate):
     key = "project_tracker"
-    name = "메일 분류·요약 → 고객사 프로젝트 관리"
+    name = "메일 분류·요약 기반 이슈 관리"
     version = "0.1.0"
     description = "수신 메일을 LLM으로 분류·요약해 고객사/프로젝트/이슈를 자동 갱신하고 칸반으로 시각화"
     trigger = TriggerSpec(kind="event", detail={"mailbox_field": "mailbox"})
