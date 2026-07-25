@@ -18,9 +18,11 @@ from app.services.mailtext import strip_quoted
 ANALYZER_VERSION = "3"
 DEFAULT_CATEGORIES = ["제안", "계약", "개발", "납품", "유지보수", "문의", "기타"]
 
-SYSTEM = """너는 B2B 소프트웨어 회사의 이메일 분석 어시스턴트다.
+SYSTEM = """너는 llsollu(엘솔루)라고 하는 음성인식 솔루션 회사의 이메일 분석 어시스턴트다.
 수신한 고객 이메일을 읽고 어느 고객사/프로젝트에 관한 것인지 분류하고 핵심을 한국어로 요약한다.
 반드시 '지금 이 메일에서 새로 쓴 내용'만 분석하라. 인용되어 딸려온 이전 메일/원문(하단 인용부)은 무시한다.
+고객사·프로젝트를 판별할 때는 발신자뿐 아니라 수신자·참조자의 이메일 도메인/이름도 함께 참고해
+누가 우리(llsollu)이고 누가 상대 고객사인지 명확히 구분한다(llsollu.com 도메인은 우리 회사다).
 분류(category)는 주어진 카테고리 중 하나로만 정한다.
 검색 편의를 위해 핵심 키워드는 물론 '유사 키워드'(동의어·약어·풀네임·영문/한글 표기)까지 함께 뽑는다.
 예: 본문에 "음성인식"이 있으면 keywords 에 "음성인식"뿐 아니라 "STT", "Speech-to-Text" 도 넣어
@@ -30,6 +32,8 @@ USER_TMPL = """다음 이메일(현재 메시지 본문)만 분석하라. 인용
 
 제목: {subject}
 발신: {from_address}
+수신: {to_addresses}
+참조: {cc_addresses}
 본문:
 {body}
 
@@ -69,6 +73,24 @@ async def resolve_categories(db: AsyncSession, mailbox: str) -> list[str]:
     return cats or DEFAULT_CATEGORIES
 
 
+def _recipients(email: dict, graph_key: str, flat_key: str) -> str:
+    """Graph(toRecipients/ccRecipients) 또는 평문(to_addresses/cc_addresses) → "이름 <주소>" 목록."""
+    people = email.get(graph_key)
+    if isinstance(people, list) and people:
+        parts = []
+        for p in people:
+            ea = (p or {}).get("emailAddress", {}) if isinstance(p, dict) else {}
+            addr = ea.get("address") or ""
+            name = ea.get("name") or ""
+            if addr or name:
+                parts.append(f"{name} <{addr}>".strip())
+        return ", ".join(parts)
+    flat = email.get(flat_key)
+    if isinstance(flat, list):
+        return ", ".join(str(x) for x in flat if x)
+    return str(flat or "")
+
+
 def _extract(email: dict) -> dict:
     """Graph/webhook payload → 표준 필드."""
     frm = (email.get("from") or {}).get("emailAddress", {})
@@ -77,6 +99,8 @@ def _extract(email: dict) -> dict:
         "subject": email.get("subject") or "",
         "from_address": frm.get("address") or email.get("from_address") or "",
         "from_name": frm.get("name") or "",
+        "to_addresses": _recipients(email, "toRecipients", "to_addresses"),
+        "cc_addresses": _recipients(email, "ccRecipients", "cc_addresses"),
         "received_at": email.get("receivedDateTime"),
         "body": (email.get("body") or {}).get("content")
         or email.get("bodyText") or email.get("bodyPreview") or "",
@@ -91,6 +115,8 @@ async def analyze_email(llm, email: dict, categories: list[str]) -> dict:
         SYSTEM,
         USER_TMPL.format(
             subject=f["subject"], from_address=f["from_address"],
+            to_addresses=f["to_addresses"] or "(없음)",
+            cc_addresses=f["cc_addresses"] or "(없음)",
             body=body, categories=", ".join(categories),
         ),
     )
