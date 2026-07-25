@@ -3,11 +3,11 @@ import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { Play, RefreshCw, Search, X } from 'lucide-react'
-import { api } from '@/lib/api'
-import type { AgentInfo, ProjectInfo, RunInfo } from '@/lib/types'
+import { RefreshCw, Search, X } from 'lucide-react'
+import type { AgentInfo, ProjectInfo } from '@/lib/types'
 import { useMoveProject, useProjects } from '@/hooks/useProjects'
 import { ViewHeader } from '@/components/ViewHeader'
+import { AnalyzeButton } from '@/components/AnalyzeButton'
 import { SourceEmail } from '@/components/SourceEmail'
 import { useEscape } from '@/lib/useEscape'
 import { cn } from '@/lib/utils'
@@ -59,7 +59,14 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
   const visible = useMemo(() => {
     const q = query.toLowerCase()
     const list = all.filter((p) => {
-      if (q && !p.client_name.toLowerCase().includes(q) && !p.title.toLowerCase().includes(q)) return false
+      if (q) {
+        const hay = [
+          p.client_name, p.title, p.category, p.latest_update,
+          ...(p.keywords ?? []),
+          ...p.issues.map((i) => i.summary),
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!hay.includes(q)) return false
+      }
       if (catFilter && (p.category ?? '') !== catFilter) return false
       return true
     })
@@ -91,7 +98,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
         agent={agent}
         actions={
           <>
-            <DryRunButton agentId={agent.id} />
+            <AnalyzeButton agentId={agent.id} />
             <button
               onClick={() => projects.refetch()}
               aria-label="새로고침"
@@ -160,7 +167,7 @@ function Toolbar(props: {
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input
           value={props.query} onChange={(e) => props.setQuery(e.target.value)}
-          placeholder="고객사 / 프로젝트 검색…"
+          placeholder="분석 / 요약 내용 검색…"
           className="w-60 rounded-xl border border-line bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
         />
       </div>
@@ -328,88 +335,3 @@ function DetailModal({ p, agentId, onClose }: { p: ProjectInfo; agentId: string;
   )
 }
 
-function DryRunButton({ agentId }: { agentId: string }) {
-  const [state, setState] = useState<'idle' | 'running'>('idle')
-  const [result, setResult] = useState<RunInfo | null | 'timeout'>(null)
-
-  async function run() {
-    setResult(null)
-    setState('running')
-    try {
-      const before = new Set((await api.runs(agentId)).map((r) => r.id))
-      await api.runNow(agentId, true)
-      let found: RunInfo | null = null
-      for (let i = 0; i < 20; i++) {
-        await new Promise((r) => setTimeout(r, 1500))
-        const runs = await api.runs(agentId).catch(() => [])
-        const done = runs.find((r) => r.trigger_source === 'manual' && !before.has(r.id) && r.status !== 'running')
-        if (done) { found = done; break }
-      }
-      setResult(found ?? 'timeout')
-    } catch {
-      setResult('timeout')
-    } finally {
-      setState('idle')
-    }
-  }
-
-  return (
-    <>
-      <button
-        onClick={run}
-        className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-primary hover:bg-primary/10"
-      >
-        <Play size={16} /> 지금 실행(드라이런)
-      </button>
-      {state === 'running' && (
-        <Modal>
-          <div className="flex items-center gap-3">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-primary" />
-            <span className="font-medium">최신 메일 1건을 분류하는 중…</span>
-          </div>
-        </Modal>
-      )}
-      {result !== null && state === 'idle' && (
-        <Modal onClose={() => setResult(null)}>
-          <h2 className="text-lg font-extrabold">드라이런 결과</h2>
-          <div className="mt-3 text-sm font-medium">
-            {result === 'timeout' && '결과를 확인하지 못했습니다(시간 초과). 잠시 후 다시 시도해 주세요.'}
-            {result !== 'timeout' && result.status === 'error' && (
-              <span>분류 실패: {result.error}{String(result.error).includes('timed out') && ' — LLM 서버 연결을 확인하세요.'}</span>
-            )}
-            {result !== 'timeout' && result.status !== 'error' && <DryResult stats={result.stats} />}
-          </div>
-          <div className="mt-5 text-right">
-            <button onClick={() => setResult(null)} className="rounded-xl px-4 py-2 font-semibold text-muted hover:bg-line/50">닫기</button>
-          </div>
-        </Modal>
-      )}
-    </>
-  )
-}
-
-function DryResult({ stats }: { stats: Record<string, unknown> }) {
-  if ((stats.processed as number) === 0 || stats.processed === undefined) return <>분류할 새 메일이 없습니다.</>
-  const row = (k: string, v: unknown) => (
-    <div className="flex gap-2 py-0.5"><span className="w-16 text-muted">{k}</span><span>{String(v ?? '-')}</span></div>
-  )
-  return (
-    <div>
-      {row('고객사', stats.client)}
-      {row('분류', stats.category)}
-      {row('요약', stats.summary)}
-      <p className="mt-2 text-xs text-muted">※ 미리보기입니다. 실제로 저장되지 않았습니다.</p>
-    </div>
-  )
-}
-
-function Modal({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
-  useEscape(() => onClose?.())
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow)]" onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  )
-}

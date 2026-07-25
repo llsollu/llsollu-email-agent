@@ -136,6 +136,7 @@ class ProjectOut(BaseModel):
     category: str | None = None
     priority: str
     latest_update: str | None = None
+    keywords: list | None = None
     updated_at: datetime | None = None
     source_message_id: uuid.UUID | None = None
 
@@ -157,6 +158,7 @@ class TimelineEntry(BaseModel):
     action_required: bool = False
     issue: dict | None = None
     points: list | None = None
+    keywords: list | None = None
 
     class Config:
         from_attributes = True

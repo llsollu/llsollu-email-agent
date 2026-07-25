@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -24,6 +24,8 @@ class Project(Base, TimestampMixin):
     category: Mapped[str | None] = mapped_column(String(80))  # 사용자 정의 분류
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     latest_update: Mapped[str | None] = mapped_column(Text)
+    # 최근 메일 분석의 키워드 + 유사 키워드(검색 편의). mail_records.keywords 계승.
+    keywords: Mapped[list | None] = mapped_column(JSON)
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # 최근 갱신을 유발한 원본 메일(mail_records.id). 상세 모달의 "원문 보기"에 사용.
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(

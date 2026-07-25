@@ -64,9 +64,14 @@ async def create_agent(
     except KeyError:
         raise HTTPException(status_code=400, detail="알 수 없는 템플릿")
 
+    config = dict(body.config or {})
+    # 메일 분석 에이전트의 대상 메일함은 항상 소유자 본인 메일로 고정.
+    if body.template_key == "project_tracker":
+        config["mailbox"] = user.email
+
     agent = Agent(
         owner_user_id=user.id, template_key=body.template_key, name=body.name,
-        status="configuring", config=body.config or {},
+        status="configuring", config=config,
         secrets_enc=encrypt_secrets(body.secrets) if body.secrets else None,
     )
     db.add(agent)
@@ -93,7 +98,11 @@ async def update_agent(
     if body.name is not None:
         agent.name = body.name
     if body.config is not None:
-        agent.config = {**agent.config, **body.config}
+        merged = {**agent.config, **body.config}
+        # 메일 분석 에이전트의 대상 메일함은 항상 소유자 본인 메일로 고정.
+        if agent.template_key == "project_tracker":
+            merged["mailbox"] = user.email
+        agent.config = merged
     if body.secrets:
         merged = {**decrypt_secrets(agent.secrets_enc), **body.secrets}
         agent.secrets_enc = encrypt_secrets(merged)

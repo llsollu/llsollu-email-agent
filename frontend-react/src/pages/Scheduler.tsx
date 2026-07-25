@@ -19,6 +19,24 @@ function fmtKst(iso?: unknown) {
   return `${k.getUTCFullYear()}-${p(k.getUTCMonth() + 1)}-${p(k.getUTCDate())} ${p(k.getUTCHours())}:${p(k.getUTCMinutes())} (KST)`
 }
 
+/** 공유 URL에서 사람이 읽을 수 있는 파일 제목(파일명)을 추출. 못 찾으면 null. */
+function fileTitleFromUrl(url: string): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    const byParam = u.searchParams.get('file') || u.searchParams.get('filename')
+    if (byParam) return decodeURIComponent(byParam)
+    const segs = u.pathname.split('/').map((s) => decodeURIComponent(s)).filter(Boolean)
+    // 확장자가 있는 마지막 경로 세그먼트를 파일명으로 본다.
+    for (let i = segs.length - 1; i >= 0; i--) {
+      if (/\.[a-z0-9]{2,5}$/i.test(segs[i])) return segs[i]
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function Scheduler({ agent }: { agent: AgentInfo }) {
   const qc = useQueryClient()
   const cfg = agent.config as Record<string, unknown>
@@ -41,6 +59,8 @@ export function Scheduler({ agent }: { agent: AgentInfo }) {
   const sched = schedule.data as Record<string, unknown> | null
   const cc = String(cfg.cc_email ?? '')
   const dateCol = String(cfg.date_column ?? '')
+  const fileUrl = String(cfg.sharepoint_file_url ?? '')
+  const fileTitle = fileTitleFromUrl(fileUrl)
 
   return (
     <div className="flex h-full flex-col">
@@ -62,11 +82,15 @@ export function Scheduler({ agent }: { agent: AgentInfo }) {
       <div className="flex-1 space-y-4 overflow-y-auto p-5">
         <Section title="트리거 / 규칙">
           <Kv k="확인 주기" v={humanFromCron(String(cfg.cron ?? ''))} />
-          <Kv k="참조 파일 URL" v={String(cfg.sharepoint_file_url ?? '-')} />
+          <KvNode k="참조 파일">
+            {fileUrl
+              ? <a href={fileUrl} target="_blank" rel="noreferrer" className="font-semibold text-primary hover:underline">{fileTitle ?? fileUrl}</a>
+              : <span className="font-medium text-muted">지정 안 함 (데이터 없이 발송)</span>}
+          </KvNode>
           <Kv k="발신자" v={String(cfg.mail_sender ?? '-')} />
           <Kv k="수신자" v={String(cfg.recipient_email ?? '-')} />
           {cc && <Kv k="참조" v={cc} />}
-          <Kv k="발송기준일" v={dateCol || '지정 안 함 (주기마다 전체 발송)'} />
+          <Kv k="발송기준일" v={dateCol ? `첨부 파일 내 데이터 - ${dateCol}` : '지정 안 함 (주기마다 전체 발송)'} />
         </Section>
 
         {sched && (
@@ -118,6 +142,15 @@ function Kv({ k, v }: { k: string; v: string }) {
     <div className="flex gap-3 py-0.5 text-sm">
       <span className="w-32 shrink-0 font-semibold text-muted">{k}</span>
       <span className="min-w-0 break-all font-medium">{v}</span>
+    </div>
+  )
+}
+
+function KvNode({ k, children }: { k: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 py-0.5 text-sm">
+      <span className="w-32 shrink-0 font-semibold text-muted">{k}</span>
+      <span className="min-w-0 break-all">{children}</span>
     </div>
   )
 }

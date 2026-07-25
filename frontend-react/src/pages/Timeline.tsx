@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Play, RefreshCw, Search, X } from 'lucide-react'
+import { RefreshCw, Search, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AgentInfo, TimelineEntry } from '@/lib/types'
 import { ViewHeader } from '@/components/ViewHeader'
+import { AnalyzeButton } from '@/components/AnalyzeButton'
 import { SourceEmail } from '@/components/SourceEmail'
 import { useEscape } from '@/lib/useEscape'
 import { cn } from '@/lib/utils'
@@ -36,7 +37,6 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [origin, setOrigin] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
 
   const all = useMemo(() => tl.data ?? [], [tl.data])
   const keyOf = (e: TimelineEntry) => (group === 'client' ? e.client_name : e.project_title) || '(미분류)'
@@ -60,19 +60,12 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
       .filter((e) => {
         if (cat && (e.category ?? '') !== cat) return false
         if (sel && keyOf(e) !== sel) return false
-        if (q && !`${e.subject}${e.summary}${e.client_name}${e.project_title}`.toLowerCase().includes(q)) return false
+        if (q && !`${e.subject}${e.summary}${e.client_name}${e.project_title}${(e.points ?? []).join(' ')}${(e.keywords ?? []).join(' ')}`.toLowerCase().includes(q)) return false
         return true
       })
       .sort((a, b) => (b.received_at ?? '').localeCompare(a.received_at ?? ''))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, cat, sel, query, group])
-
-  async function dryRun() {
-    await api.runNow(agent.id, false) // 타임라인은 저장(공유 분석)해야 화면에 쌓이므로 실제 실행
-    setToast('최신 메일 분석을 큐에 넣었습니다')
-    setTimeout(() => setToast(null), 3000)
-    setTimeout(() => tl.refetch(), 3000)
-  }
 
   const toggle = (id: string) =>
     setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
@@ -86,9 +79,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
         agent={agent}
         actions={
           <>
-            <button onClick={dryRun} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-primary hover:bg-primary/10">
-              <Play size={16} /> 최신 메일 분석
-            </button>
+            <AnalyzeButton agentId={agent.id} />
             <button onClick={() => tl.refetch()} aria-label="새로고침" className="grid h-9 w-9 place-items-center rounded-xl text-muted hover:bg-line/50">
               <RefreshCw size={17} />
             </button>
@@ -99,7 +90,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
       <div className="flex flex-wrap items-center gap-3 px-6 pt-4">
         <div className="relative">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="제목 · 요약 · 고객사 검색…"
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="분석 / 요약 내용 검색…"
             className="w-64 rounded-xl border border-line bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-primary" />
         </div>
         <div className="inline-flex rounded-xl border border-line p-1">
@@ -193,9 +184,6 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
       </div>
 
       {origin && <OriginModal agentId={agent.id} messageId={origin} onClose={() => setOrigin(null)} />}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-surface shadow-lg">{toast}</div>
-      )}
     </div>
   )
 }

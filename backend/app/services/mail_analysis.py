@@ -15,13 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Agent, MailRecord
 from app.services.mailtext import strip_quoted
 
-ANALYZER_VERSION = "2"
+ANALYZER_VERSION = "3"
 DEFAULT_CATEGORIES = ["제안", "계약", "개발", "납품", "유지보수", "문의", "기타"]
 
 SYSTEM = """너는 B2B 소프트웨어 회사의 이메일 분석 어시스턴트다.
 수신한 고객 이메일을 읽고 어느 고객사/프로젝트에 관한 것인지 분류하고 핵심을 한국어로 요약한다.
 반드시 '지금 이 메일에서 새로 쓴 내용'만 분석하라. 인용되어 딸려온 이전 메일/원문(하단 인용부)은 무시한다.
-분류(category)는 주어진 카테고리 중 하나로만 정한다."""
+분류(category)는 주어진 카테고리 중 하나로만 정한다.
+검색 편의를 위해 핵심 키워드는 물론 '유사 키워드'(동의어·약어·풀네임·영문/한글 표기)까지 함께 뽑는다.
+예: 본문에 "음성인식"이 있으면 keywords 에 "음성인식"뿐 아니라 "STT", "Speech-to-Text" 도 넣어
+'STT'로 검색해도 이 메일이 걸리도록 한다."""
 
 USER_TMPL = """다음 이메일(현재 메시지 본문)만 분석하라. 인용된 이전 내용은 이미 제거되어 있다.
 
@@ -40,7 +43,8 @@ USER_TMPL = """다음 이메일(현재 메시지 본문)만 분석하라. 인용
   "summary": "이 메일 한 줄 요약",
   "action_required": true/false,
   "issue": {{"type": "bug|request|delay|question|complaint|general", "summary": "이슈 요약", "severity": "low|medium|high|critical"}} 또는 null,
-  "points": ["핵심 포인트 1", "핵심 포인트 2"]
+  "points": ["핵심 포인트 1", "핵심 포인트 2"],
+  "keywords": ["핵심 키워드와 유사 키워드(동의어·약어·풀네임 포함). 예: 음성인식, STT, Speech-to-Text"]
 }}"""
 
 
@@ -146,6 +150,7 @@ async def get_or_analyze(db: AsyncSession, llm, mailbox: str, email: dict) -> Ma
     rec.action_required = bool(cls.get("action_required"))
     rec.issue = cls.get("issue")
     rec.points = cls.get("points") or []
+    rec.keywords = cls.get("keywords") or []
     rec.analyzed = True
     rec.analyzer_version = ANALYZER_VERSION
     await db.flush()

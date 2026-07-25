@@ -32,14 +32,13 @@ class ProjectTrackerTemplate(BaseTemplate):
     )
 
     def config_schema(self) -> list[ConfigField]:
+        # 대상 메일함은 항상 소유자 본인 메일로 고정(라우트에서 주입) → 설정 항목 없음.
         return [
-            ConfigField("mailbox", "대상 메일함", "email", required=True,
-                        help="분석할 메일을 수신하는 회사 메일 주소"),
             ConfigField("categories", "메일 분류 카테고리", "string", required=False,
                         help="쉼표로 구분. 분석·카테고리는 이 메일함에서 공유됩니다."),
-            ConfigField("primary_axis", "주 기준", "select", required=False,
+            ConfigField("primary_axis", "기본 보기 설정", "select", required=False,
                         default="client", options=["client", "project"],
-                        help="이슈 카드 제목·타임라인 그룹의 기준: 고객사/프로젝트"),
+                        help="이슈 카드 제목·타임라인 그룹의 기본 기준: 고객사별/프로젝트별"),
         ]
 
     async def on_setup(self, ctx: SetupContext) -> None:
@@ -91,8 +90,9 @@ class ProjectTrackerTemplate(BaseTemplate):
         if project is None:
             project = Project(
                 agent_id=ctx.agent_id, client_name=rec.client_name, title=rec.project_title,
-                status="active", category=rec.category,
-                latest_update=rec.summary, last_activity_at=now, source_message_id=rec.id,
+                status="storyboard", category=rec.category,
+                latest_update=rec.summary, keywords=rec.keywords or [],
+                last_activity_at=now, source_message_id=rec.id,
             )
             ctx.db.add(project)
             await ctx.db.flush()
@@ -100,6 +100,7 @@ class ProjectTrackerTemplate(BaseTemplate):
             if rec.category:
                 project.category = rec.category
             project.latest_update = rec.summary
+            project.keywords = rec.keywords or []
             project.last_activity_at = now
             project.source_message_id = rec.id
 

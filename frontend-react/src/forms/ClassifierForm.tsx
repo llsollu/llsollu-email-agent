@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Info, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const AXIS: Record<string, string> = { client: '고객사', project: '프로젝트' }
+const AXIS: Record<string, string> = { client: '고객사별', project: '프로젝트별' }
 
 type Props = {
   initialName: string
@@ -15,16 +15,16 @@ type Props = {
 
 export function ClassifierForm({ initialName, initialConfig: c, busy = false, submitLabel = '생성', onSubmit, onDelete }: Props) {
   const [name, setName] = useState(initialName)
-  const [mailbox, setMailbox] = useState(String(c.mailbox ?? ''))
   const [categories, setCategories] = useState(String(c.categories ?? ''))
   const [axis, setAxis] = useState(AXIS[String(c.primary_axis ?? 'client')] ? String(c.primary_axis) : 'client')
   const [error, setError] = useState<string | null>(null)
   const inp = 'w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-primary'
 
   function submit() {
-    if (!name.trim() || !mailbox.trim()) return setError('이름·대상 메일함을 입력하세요')
+    if (!name.trim()) return setError('이름을 입력하세요')
     setError(null)
-    onSubmit(name.trim(), { mailbox: mailbox.trim(), categories: categories.trim(), primary_axis: axis })
+    // 대상 메일함은 백엔드에서 항상 본인 메일로 고정하므로 여기서 보내지 않는다.
+    onSubmit(name.trim(), { categories: categories.trim(), primary_axis: axis })
   }
 
   return (
@@ -33,19 +33,17 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
         <Info size={16} /> 설정은 생성 후에도 언제든 변경할 수 있어요. (추후 변경 가능)
       </div>
       <p className="mb-3 rounded-xl border border-line bg-bg px-3 py-2.5 text-[13px] font-medium text-muted">
-        한 번 설정하면 <b>이슈 보드</b>와 <b>타임라인</b> 두 대시보드를 함께 볼 수 있어요. 분석·카테고리는 이 메일함에서 공유됩니다.
+        한 번 설정하면 <b>이슈 보드</b>와 <b>타임라인</b> 두 대시보드를 함께 볼 수 있어요. 대상 메일은 항상 <b>본인 메일함</b>이며, 분석·카테고리는 여기서 공유됩니다.
       </p>
       <div className="space-y-3">
         <label className="block"><span className="mb-1 block text-[13px] font-semibold text-muted">이름</span>
           <input className={inp} value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="block"><span className="mb-1 block text-[13px] font-semibold text-muted">대상 메일함</span>
-          <input className={inp} value={mailbox} onChange={(e) => setMailbox(e.target.value)} placeholder="분석할 메일을 수신하는 회사 메일 주소" /></label>
         <label className="block"><span className="mb-1 block text-[13px] font-semibold text-muted">메일 분류 카테고리</span>
           <input className={inp} value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="쉼표로 구분. 예: 제안,계약,개발,납품,유지보수,문의" /></label>
 
         <div>
-          <div className="text-[15px] font-extrabold">주 기준</div>
-          <p className="mb-2 text-[13px] font-medium text-muted">이슈 카드 제목·타임라인 그룹의 기준</p>
+          <div className="text-[15px] font-extrabold">기본 보기 설정</div>
+          <p className="mb-2 text-[13px] font-medium text-muted">이슈 카드 제목·타임라인 그룹의 기본 기준</p>
           <div className="inline-flex rounded-xl border border-line p-1">
             {Object.entries(AXIS).map(([k, label]) => (
               <button key={k} onClick={() => setAxis(k)}

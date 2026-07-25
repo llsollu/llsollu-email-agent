@@ -37,5 +37,7 @@ class MailRecord(Base, TimestampMixin):
     action_required: Mapped[bool] = mapped_column(Boolean, default=False)
     issue: Mapped[dict | None] = mapped_column(JSON)
     points: Mapped[list | None] = mapped_column(JSON)
+    # 검색 편의용 키워드 + 유사 키워드(동의어·약어·풀네임). 예: ["음성인식", "STT", "Speech-to-Text"]
+    keywords: Mapped[list | None] = mapped_column(JSON)
     analyzed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     analyzer_version: Mapped[str | None] = mapped_column(String(20))

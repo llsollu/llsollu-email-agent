@@ -64,7 +64,8 @@ export function MailSchedulerForm({
     }
   }
 
-  const step1Valid = name.trim() && fileUrl.trim() && recipient.trim()
+  // 참조 파일 URL 은 선택. 이름·수신자만 필수.
+  const step1Valid = name.trim() && recipient.trim()
 
   function tokenError(label: string, text: string): string | null {
     if (!text.includes('{')) return null
@@ -96,7 +97,7 @@ export function MailSchedulerForm({
   }
 
   function submit() {
-    if (!step1Valid) return setDataError('이름·참조 파일 URL·수신자 이메일을 모두 입력하세요')
+    if (!step1Valid) return setDataError('이름·수신자 이메일을 입력하세요')
     const err = tokenError('메일 제목', subject) ?? tokenError('메일 작성 내용', body)
     if (err) return setDataError(err)
     setDataError(null)
@@ -104,7 +105,7 @@ export function MailSchedulerForm({
   }
 
   async function goStep2() {
-    if (!step1Valid) return setStepError('이름·참조 파일 URL·수신자 이메일을 모두 입력하세요')
+    if (!step1Valid) return setStepError('이름·수신자 이메일을 입력하세요')
     setStepError(null)
     await loadColumns()
     setStep(1)
@@ -135,7 +136,7 @@ export function MailSchedulerForm({
   const basicFields = (
     <div className="space-y-2">
       <Field label="이름"><input className={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 세금계산서 발행 알림" /></Field>
-      <Field label="참조 파일 URL (엑셀 표 형식)"><input className={inp} value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="SharePoint 공유 xlsx 링크" /></Field>
+      <Field label="참조 파일 URL (엑셀 표 형식, 선택)"><input className={inp} value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="SharePoint 공유 xlsx 링크 (없으면 데이터 없이 발송)" /></Field>
       <Field label="수신자 이메일 (쉼표로 여러 명)"><input className={inp} value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="a@llsollu.com, b@llsollu.com" /></Field>
       <Field label="참조 이메일 (쉼표로 여러 명, 선택)"><input className={inp} value={cc} onChange={(e) => setCc(e.target.value)} placeholder="cc@llsollu.com" /></Field>
       <div className="flex items-center gap-1.5 pt-1 text-[13px] font-medium text-muted">

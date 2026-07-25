@@ -32,7 +32,8 @@ class MailSchedulerTemplate(BaseTemplate):
     def config_schema(self) -> list[ConfigField]:
         # 전용 2단계 마법사(프론트)에서 입력하지만, 설정 검증/폴백용으로 스키마도 유지.
         return [
-            ConfigField("sharepoint_file_url", "참조 파일 URL", "url", required=True),
+            ConfigField("sharepoint_file_url", "참조 파일 URL", "url", required=False,
+                        help="비우면 데이터 없이 템플릿만으로 발송"),
             ConfigField("mail_sender", "발신자 이메일", "email", required=True),
             ConfigField("recipient_email", "수신자 이메일", "string", required=True,
                         help="쉼표로 여러 명 지정 가능"),
@@ -46,7 +47,8 @@ class MailSchedulerTemplate(BaseTemplate):
         ]
 
     async def on_setup(self, ctx: SetupContext) -> None:
-        for req in ("sharepoint_file_url", "mail_sender", "recipient_email"):
+        # 참조 파일 URL 은 선택(없으면 데이터 없이 발송). 발신·수신만 필수.
+        for req in ("mail_sender", "recipient_email"):
             if not ctx.config.get(req):
                 raise ValueError(f"{req} 설정이 필요합니다")
 
@@ -61,8 +63,14 @@ class MailSchedulerTemplate(BaseTemplate):
 
         today = datetime.now(ZoneInfo(settings.scheduler_tz)).date()
 
-        data = await ctx.graph.download_shared_file(cfg["sharepoint_file_url"])
-        columns, rows = parse_table(data)
+        file_url = (cfg.get("sharepoint_file_url") or "").strip()
+        if file_url:
+            data = await ctx.graph.download_shared_file(file_url)
+            columns, rows = parse_table(data)
+        else:
+            # 참조 파일 없음: 데이터가 없어도 템플릿만으로 1건 발송(발송기준일은 무시).
+            columns, rows = [], [{}]
+            date_column = ""
 
         if date_column:
             targets = [r for r in rows if is_scheduled_today(r.get(date_column), today)]
