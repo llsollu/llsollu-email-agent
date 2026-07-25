@@ -91,6 +91,7 @@ class AgentOut(BaseModel):
     error_detail: str | None = None
     config: dict
     view_type: str | None = None
+    views: list[dict] = []
     created_at: datetime
     updated_at: datetime
 

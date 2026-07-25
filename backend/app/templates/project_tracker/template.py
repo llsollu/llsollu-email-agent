@@ -18,21 +18,28 @@ from app.services.mail_analysis import analyze_email, get_or_analyze, resolve_ca
 
 class ProjectTrackerTemplate(BaseTemplate):
     key = "project_tracker"
-    name = "메일 분류·요약 기반 이슈 관리"
-    version = "0.2.0"
-    description = "수신 메일을 LLM으로 분류·요약해 고객사/프로젝트/이슈를 자동 갱신하고 칸반으로 시각화"
+    name = "메일 분석·요약 관리"
+    version = "0.3.0"
+    description = "수신 메일을 LLM으로 분석·요약해 이슈 보드(칸반)와 타임라인 두 뷰로 관리"
     trigger = TriggerSpec(kind="event", detail={"mailbox_field": "mailbox"})
-    view = ViewSpec(view_type="kanban", data_endpoints=["/agents/{id}/projects"])
+    view = ViewSpec(
+        view_type="kanban",
+        views=[
+            {"key": "board", "type": "kanban", "label": "이슈 보드"},
+            {"key": "timeline", "type": "timeline", "label": "타임라인"},
+        ],
+        data_endpoints=["/agents/{id}/projects", "/agents/{id}/timeline"],
+    )
 
     def config_schema(self) -> list[ConfigField]:
         return [
             ConfigField("mailbox", "대상 메일함", "email", required=True,
-                        help="분류할 메일을 수신하는 회사 메일 주소"),
+                        help="분석할 메일을 수신하는 회사 메일 주소"),
             ConfigField("categories", "메일 분류 카테고리", "string", required=False,
-                        help="쉼표로 구분. 같은 메일함의 에이전트들과 공유됩니다."),
-            ConfigField("card_title_field", "요약 카드 타이틀", "select", required=False,
-                        default="client", options=["client", "category", "title"],
-                        help="카드에 표시할 제목: 고객사/분류/요약 제목"),
+                        help="쉼표로 구분. 분석·카테고리는 이 메일함에서 공유됩니다."),
+            ConfigField("primary_axis", "주 기준", "select", required=False,
+                        default="client", options=["client", "project"],
+                        help="이슈 카드 제목·타임라인 그룹의 기준: 고객사/프로젝트"),
         ]
 
     async def on_setup(self, ctx: SetupContext) -> None:

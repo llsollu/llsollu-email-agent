@@ -29,7 +29,7 @@ function monthKey(iso?: string | null) {
 export function Timeline({ agent }: { agent: AgentInfo }) {
   const tl = useQuery({ queryKey: ['timeline', agent.id], queryFn: () => api.timeline(agent.id), refetchInterval: 60_000 })
   const [group, setGroup] = useState<'client' | 'project'>(
-    ((agent.config.default_group as string) === 'project' ? 'project' : 'client'),
+    ((agent.config.primary_axis as string) === 'project' ? 'project' : 'client'),
   )
   const [cat, setCat] = useState('')
   const [sel, setSel] = useState<string | null>(null)

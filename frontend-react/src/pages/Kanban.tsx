@@ -48,7 +48,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
   const [detail, setDetail] = useState<ProjectInfo | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
 
-  const titleField = (agent.config.card_title_field as string) || 'client'
+  const titleField = (agent.config.primary_axis as string) || 'client'
   const all = useMemo(() => projects.data ?? [], [projects.data])
 
   const categories = useMemo(
@@ -243,13 +243,11 @@ function DraggableCard({ p, titleField, onOpen }: { p: ProjectInfo; titleField: 
   )
 }
 
-function primaryText(p: ProjectInfo, field: string) {
-  if (field === 'category') return p.category || '(분류 없음)'
-  if (field === 'title') return p.title
-  return p.client_name
+function primaryText(p: ProjectInfo, axis: string) {
+  return axis === 'project' ? p.title : p.client_name
 }
-function secondaryText(p: ProjectInfo, field: string) {
-  return field === 'title' ? p.client_name : p.title
+function secondaryText(p: ProjectInfo, axis: string) {
+  return axis === 'project' ? p.client_name : p.title
 }
 function priorityColor(pr?: string | null) {
   return pr === 'critical' ? 'bg-cancelled' : pr === 'high' ? 'bg-onhold' : pr === 'low' ? 'bg-muted' : 'bg-primary'

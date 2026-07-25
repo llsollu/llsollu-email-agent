@@ -26,4 +26,4 @@ def all_templates() -> list[AgentTemplate]:
 
 def load_builtin_templates() -> None:
     """내장 템플릿 등록. import 시 데코레이터/register 호출로 채워진다."""
-    from app.templates import mail_scheduler, mail_timeline, project_tracker  # noqa: F401
+    from app.templates import mail_scheduler, project_tracker  # noqa: F401

@@ -6,7 +6,6 @@ import { api } from '@/lib/api'
 import type { TemplateInfo } from '@/lib/types'
 import { MailSchedulerForm } from '@/forms/MailSchedulerForm'
 import { ClassifierForm } from '@/forms/ClassifierForm'
-import { TimelineForm } from '@/forms/TimelineForm'
 import { AgentIcon } from '@/components/AgentIcon'
 
 export function AddAgent() {
@@ -63,8 +62,6 @@ export function AddAgent() {
             </button>
             {picked.key === 'mail_scheduler' ? (
               <MailSchedulerForm initialName={picked.name} initialConfig={{}} wizard busy={busy} submitLabel="생성" onSubmit={create} />
-            ) : picked.key === 'mail_timeline' ? (
-              <TimelineForm initialName={picked.name} initialConfig={{}} busy={busy} submitLabel="생성" onSubmit={create} />
             ) : (
               <ClassifierForm initialName={picked.name} initialConfig={{}} busy={busy} submitLabel="생성" onSubmit={create} />
             )}

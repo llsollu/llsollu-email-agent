@@ -35,8 +35,10 @@ class TriggerSpec:
 
 @dataclass
 class ViewSpec:
-    view_type: str  # 프론트 뷰 레지스트리 키 (예: "kanban", "scheduler_panel")
+    view_type: str  # 기본(첫) 뷰 타입 (예: "kanban", "scheduler_panel")
     data_endpoints: list[str] = field(default_factory=list)
+    # 여러 뷰를 탭으로 제공할 때. 각 항목: {"key","type","label"}. 비면 단일 뷰(view_type).
+    views: list[dict] = field(default_factory=list)
 
 
 @runtime_checkable

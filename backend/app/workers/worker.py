@@ -55,7 +55,7 @@ async def poll_mailboxes(ctx) -> dict:
     async with SessionLocal() as db:
         res = await db.execute(
             select(Agent).where(
-                Agent.template_key.in_(("project_tracker", "mail_timeline")),
+                Agent.template_key == "project_tracker",
                 Agent.status == "active",
                 Agent.deleted_at.is_(None),
             )

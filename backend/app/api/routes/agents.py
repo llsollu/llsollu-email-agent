@@ -32,13 +32,16 @@ async def _get_owned_agent(agent_id: uuid.UUID, user: User, db: AsyncSession) ->
 
 def _to_out(agent: Agent) -> AgentOut:
     view_type = None
+    views: list[dict] = []
     try:
-        view_type = get_template(agent.template_key).view.view_type
+        spec = get_template(agent.template_key).view
+        view_type = spec.view_type
+        views = spec.views
     except KeyError:
         pass
     return AgentOut(
         id=agent.id, template_key=agent.template_key, name=agent.name, status=agent.status,
-        error_detail=agent.error_detail, config=agent.config, view_type=view_type,
+        error_detail=agent.error_detail, config=agent.config, view_type=view_type, views=views,
         created_at=agent.created_at, updated_at=agent.updated_at,
     )
 

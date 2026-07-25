@@ -6,7 +6,6 @@ import { api } from '@/lib/api'
 import type { AgentInfo } from '@/lib/types'
 import { MailSchedulerForm } from '@/forms/MailSchedulerForm'
 import { ClassifierForm } from '@/forms/ClassifierForm'
-import { TimelineForm } from '@/forms/TimelineForm'
 import { useEscape } from '@/lib/useEscape'
 
 export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
@@ -49,7 +48,6 @@ export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: 
 
   const isSched = agent.template_key === 'mail_scheduler'
   const isClassifier = agent.template_key === 'project_tracker'
-  const isTimeline = agent.template_key === 'mail_timeline'
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-6" onClick={onClose}>
@@ -71,13 +69,7 @@ export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: 
             busy={busy} submitLabel="저장" onSubmit={save} onDelete={() => setConfirmDel(true)}
           />
         )}
-        {isTimeline && (
-          <TimelineForm
-            initialName={agent.name} initialConfig={agent.config}
-            busy={busy} submitLabel="저장" onSubmit={save} onDelete={() => setConfirmDel(true)}
-          />
-        )}
-        {!isSched && !isClassifier && !isTimeline && <p className="text-sm text-muted">이 템플릿은 아직 편집 폼이 없습니다.</p>}
+        {!isSched && !isClassifier && <p className="text-sm text-muted">이 템플릿은 아직 편집 폼이 없습니다.</p>}
 
         {error && <p className="mt-3 text-sm font-semibold text-cancelled">{error}</p>}
       </div>

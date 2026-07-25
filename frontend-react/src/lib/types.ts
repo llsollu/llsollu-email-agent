@@ -28,6 +28,12 @@ export interface ConfigField {
   default?: unknown
 }
 
+export interface AgentView {
+  key: string
+  type: string
+  label: string
+}
+
 export interface AgentInfo {
   id: string
   template_key: string
@@ -35,6 +41,7 @@ export interface AgentInfo {
   status: string
   error_detail?: string | null
   view_type?: string | null
+  views?: AgentView[]
   config: Record<string, unknown>
 }
 

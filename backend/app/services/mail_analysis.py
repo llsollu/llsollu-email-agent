@@ -48,7 +48,7 @@ async def resolve_categories(db: AsyncSession, mailbox: str) -> list[str]:
     """메일함을 보는 활성 수신형 에이전트들의 categories 설정을 합집합으로 → 공유 taxonomy."""
     res = await db.execute(
         select(Agent).where(
-            Agent.template_key.in_(("project_tracker", "mail_timeline")),
+            Agent.template_key == "project_tracker",
             Agent.status == "active",
             Agent.deleted_at.is_(None),
         )
