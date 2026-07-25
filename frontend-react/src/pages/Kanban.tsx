@@ -86,6 +86,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
     <div className="flex h-full flex-col">
       <ViewHeader
         title={agent.name}
+        agent={agent}
         actions={
           <>
             <DryRunButton agentId={agent.id} />
