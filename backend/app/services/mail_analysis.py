@@ -17,6 +17,13 @@ from app.services.mailtext import strip_quoted
 
 ANALYZER_VERSION = "3"
 DEFAULT_CATEGORIES = ["제안", "계약", "개발", "납품", "유지보수", "문의", "기타"]
+# 이슈 유형 기본값 = 개발 분야(설정 없을 때). 프론트 issueTypes.ts 와 동일하게 유지.
+DEFAULT_ISSUE_TYPES = [
+    {"key": "bug", "label": "버그"},
+    {"key": "request", "label": "요청"},
+    {"key": "question", "label": "문의"},
+    {"key": "general", "label": "기타"},
+]
 
 SYSTEM = """너는 llsollu(엘솔루)라고 하는 음성인식 솔루션 회사의 이메일 분석 어시스턴트다.
 수신한 고객 이메일을 읽고 어느 고객사/프로젝트에 관한 것인지 분류하고 핵심을 한국어로 요약한다.
@@ -38,6 +45,7 @@ USER_TMPL = """다음 이메일(현재 메시지 본문)만 분석하라. 인용
 {body}
 
 분류 카테고리 후보: {categories}
+이슈 유형 후보(issue.type 은 아래 key 중 하나만 사용): {issue_type_legend}
 
 아래 JSON 스키마로만 답하라(설명 금지):
 {{
@@ -46,7 +54,7 @@ USER_TMPL = """다음 이메일(현재 메시지 본문)만 분석하라. 인용
   "category": "위 후보 중 하나 또는 null",
   "summary": "이 메일 한 줄 요약",
   "action_required": true/false,
-  "issue": {{"type": "bug|request|delay|question|complaint|general", "summary": "이슈 요약", "severity": "low|medium|high|critical"}} 또는 null,
+  "issue": {{"type": "{issue_type_keys} 중 하나", "summary": "이슈 요약", "severity": "low|medium|high|critical"}} 또는 null,
   "points": ["핵심 포인트 1", "핵심 포인트 2"],
   "keywords": ["핵심 키워드와 유사 키워드(동의어·약어·풀네임 포함). 예: 음성인식, STT, Speech-to-Text"]
 }}"""
@@ -71,6 +79,37 @@ async def resolve_categories(db: AsyncSession, mailbox: str) -> list[str]:
             if c and c not in cats:
                 cats.append(c)
     return cats or DEFAULT_CATEGORIES
+
+
+async def resolve_issue_types(db: AsyncSession, mailbox: str) -> list[dict]:
+    """메일함을 보는 활성 project_tracker 에이전트들의 issue_types 설정을 합집합(key 기준 dedup)으로."""
+    res = await db.execute(
+        select(Agent).where(
+            Agent.template_key == "project_tracker",
+            Agent.status == "active",
+            Agent.deleted_at.is_(None),
+        )
+    )
+    out: list[dict] = []
+    seen: set[str] = set()
+    for a in res.scalars().all():
+        if (a.config or {}).get("mailbox") != mailbox:
+            continue
+        for t in (a.config or {}).get("issue_types") or []:
+            key = str((t or {}).get("key") or "").strip()
+            label = str((t or {}).get("label") or "").strip() or key
+            if key and key not in seen:
+                seen.add(key)
+                out.append({"key": key, "label": label})
+    return out or DEFAULT_ISSUE_TYPES
+
+
+def _issue_type_prompt(issue_types: list[dict]) -> tuple[str, str]:
+    """(keys 파이프 목록, key(label) 범례) 반환. 프롬프트 주입용."""
+    types = issue_types or DEFAULT_ISSUE_TYPES
+    keys = "|".join(str(t.get("key")) for t in types if t.get("key"))
+    legend = ", ".join(f"{t.get('key')}({t.get('label')})" for t in types if t.get("key"))
+    return keys, legend
 
 
 def _recipients(email: dict, graph_key: str, flat_key: str) -> str:
@@ -107,10 +146,11 @@ def _extract(email: dict) -> dict:
     }
 
 
-async def analyze_email(llm, email: dict, categories: list[str]) -> dict:
+async def analyze_email(llm, email: dict, categories: list[str], issue_types: list[dict] | None = None) -> dict:
     """순수 분석(DB 미접근). 현재 메일 내용만 대상으로 LLM 호출."""
     f = _extract(email)
     body = strip_quoted(f["body"])[:8000]
+    keys, legend = _issue_type_prompt(issue_types or DEFAULT_ISSUE_TYPES)
     return await llm.complete_json(
         SYSTEM,
         USER_TMPL.format(
@@ -118,6 +158,7 @@ async def analyze_email(llm, email: dict, categories: list[str]) -> dict:
             to_addresses=f["to_addresses"] or "(없음)",
             cc_addresses=f["cc_addresses"] or "(없음)",
             body=body, categories=", ".join(categories),
+            issue_type_keys=keys, issue_type_legend=legend,
         ),
     )
 
@@ -159,7 +200,8 @@ async def get_or_analyze(db: AsyncSession, llm, mailbox: str, email: dict) -> Ma
         return rec
 
     categories = await resolve_categories(db, mailbox)
-    cls = await analyze_email(llm, email, categories)
+    issue_types = await resolve_issue_types(db, mailbox)
+    cls = await analyze_email(llm, email, categories, issue_types)
 
     if rec is None:
         rec = MailRecord(mailbox=mailbox, message_id=mid or f"noid-{datetime.now(timezone.utc).timestamp()}")

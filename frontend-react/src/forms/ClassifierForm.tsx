@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Info, Trash2 } from 'lucide-react'
+import { Info, Plus, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DEFAULT_ISSUE_TYPES, GENERAL, ISSUE_AREAS, type IssueType } from '@/lib/issueTypes'
 
 const AXIS: Record<string, string> = { client: '고객사별', project: '프로젝트별' }
 
@@ -17,6 +18,7 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
   const [name, setName] = useState(initialName)
   const [categories, setCategories] = useState(String(c.categories ?? ''))
   const [axis, setAxis] = useState(AXIS[String(c.primary_axis ?? 'client')] ? String(c.primary_axis) : 'client')
+  const [issueTypes, setIssueTypes] = useState<IssueType[]>(() => ensureGeneral(readIssueTypes(c.issue_types)))
   const [error, setError] = useState<string | null>(null)
   const inp = 'w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-primary'
 
@@ -24,8 +26,26 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
     if (!name.trim()) return setError('이름을 입력하세요')
     setError(null)
     // 대상 메일함은 백엔드에서 항상 본인 메일로 고정하므로 여기서 보내지 않는다.
-    onSubmit(name.trim(), { categories: categories.trim(), primary_axis: axis })
+    onSubmit(name.trim(), { categories: categories.trim(), primary_axis: axis, issue_types: issueTypes })
   }
+
+  const hasKey = (k: string) => issueTypes.some((t) => t.key === k)
+  const areaOn = (types: IssueType[]) => types.every((t) => hasKey(t.key))
+
+  function toggleArea(types: IssueType[]) {
+    setIssueTypes((prev) => {
+      if (types.every((t) => prev.some((p) => p.key === t.key))) {
+        // 이미 전부 있으면 제거(단, general 은 항상 유지)
+        const keys = new Set(types.filter((t) => t.key !== GENERAL.key).map((t) => t.key))
+        return ensureGeneral(prev.filter((p) => !keys.has(p.key)))
+      }
+      const next = [...prev]
+      for (const t of types) if (!next.some((p) => p.key === t.key)) next.push(t)
+      return ensureGeneral(next)
+    })
+  }
+  const removeKey = (k: string) =>
+    setIssueTypes((prev) => (k === GENERAL.key ? prev : prev.filter((t) => t.key !== k)))
 
   return (
     <div>
@@ -53,12 +73,100 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
             ))}
           </div>
         </div>
+
+        <IssueTypesField
+          types={issueTypes}
+          areaOn={areaOn}
+          onToggleArea={toggleArea}
+          onRemove={removeKey}
+          onAdd={(t) => setIssueTypes((prev) => (prev.some((p) => p.key === t.key) ? prev : ensureGeneral([...prev, t])))}
+        />
       </div>
 
       {error && <p className="mt-3 text-sm font-semibold text-cancelled">{error}</p>}
       <div className="mt-5 flex items-center">
         {onDelete && <button onClick={onDelete} disabled={busy} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-cancelled hover:bg-cancelled/10"><Trash2 size={16} /> 삭제</button>}
         <button onClick={submit} disabled={busy} className="ml-auto rounded-xl bg-primary px-5 py-2.5 font-bold text-white hover:bg-primary-hover disabled:opacity-50">{submitLabel}</button>
+      </div>
+    </div>
+  )
+}
+
+function readIssueTypes(raw: unknown): IssueType[] {
+  if (!Array.isArray(raw)) return DEFAULT_ISSUE_TYPES
+  const out = raw
+    .map((t) => ({ key: String((t as IssueType)?.key ?? '').trim(), label: String((t as IssueType)?.label ?? '').trim() }))
+    .filter((t) => t.key && t.label)
+  return out.length ? out : DEFAULT_ISSUE_TYPES
+}
+function ensureGeneral(types: IssueType[]): IssueType[] {
+  return types.some((t) => t.key === GENERAL.key) ? types : [...types, GENERAL]
+}
+
+function IssueTypesField({
+  types, areaOn, onToggleArea, onRemove, onAdd,
+}: {
+  types: IssueType[]
+  areaOn: (t: IssueType[]) => boolean
+  onToggleArea: (t: IssueType[]) => void
+  onRemove: (key: string) => void
+  onAdd: (t: IssueType) => void
+}) {
+  const [ck, setCk] = useState('')
+  const [cl, setCl] = useState('')
+  function add() {
+    const key = ck.trim(), label = cl.trim()
+    if (!key || !label) return
+    onAdd({ key, label })
+    setCk(''); setCl('')
+  }
+  return (
+    <div>
+      <div className="text-[15px] font-extrabold">이슈 분류</div>
+      <p className="mb-2 text-[13px] font-medium text-muted">
+        분야를 고르면 추천 이슈 유형이 채워집니다. 겸직이면 여러 개 골라도 되고(예: 영업 + PM), 아래에서 빼거나 추가하세요. 분석엔 <b>최종 목록</b>만 쓰입니다.
+      </p>
+
+      <div className="mb-1 text-xs font-semibold text-muted">분야별 추천 · 다중 선택 가능</div>
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {ISSUE_AREAS.map(({ area, types: at }) => {
+          const on = areaOn(at)
+          return (
+            <button key={area} type="button" onClick={() => onToggleArea(at)}
+              className={cn('rounded-lg border px-3 py-1.5 text-[13px] font-bold',
+                on ? 'border-primary bg-primary/10 text-primary' : 'border-line text-muted hover:bg-line/50')}>
+              {area}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 rounded-xl border border-line bg-bg p-2.5">
+        {types.length === 0 ? (
+          <span className="text-[13px] font-medium text-muted">분야를 선택하거나 직접 추가하세요</span>
+        ) : (
+          types.map((t) => (
+            <span key={t.key} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface py-1 pl-2.5 pr-1.5 text-[13px]">
+              <b className="font-bold">{t.label}</b>
+              <code className="text-[11px] text-muted">{t.key}</code>
+              {t.key !== GENERAL.key && (
+                <button type="button" aria-label="제거" onClick={() => onRemove(t.key)} className="text-muted hover:text-ink"><X size={13} /></button>
+              )}
+            </span>
+          ))
+        )}
+      </div>
+      <p className="mt-1 text-xs font-medium text-muted">general(기타)은 미분류 대비로 항상 유지됩니다.</p>
+
+      <div className="mt-2 flex gap-2">
+        <input value={ck} onChange={(e) => setCk(e.target.value)} placeholder="key (예: renewal)"
+          className="w-40 rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary" />
+        <input value={cl} onChange={(e) => setCl(e.target.value)} placeholder="표시 이름 (예: 재계약)"
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          className="flex-1 rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary" />
+        <button type="button" onClick={add} className="flex items-center gap-1 rounded-xl border border-line px-3 py-2 text-sm font-bold text-muted hover:bg-line/50">
+          <Plus size={15} /> 추가
+        </button>
       </div>
     </div>
   )

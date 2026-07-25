@@ -9,6 +9,7 @@ import { useMoveProject, useProjects } from '@/hooks/useProjects'
 import { ViewHeader } from '@/components/ViewHeader'
 import { AnalyzeButton } from '@/components/AnalyzeButton'
 import { SourceEmail } from '@/components/SourceEmail'
+import { issueLabelMap, type IssueType } from '@/lib/issueTypes'
 import { useEscape } from '@/lib/useEscape'
 import { cn } from '@/lib/utils'
 
@@ -27,7 +28,6 @@ const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-completed/15 text-completed',
   cancelled: 'bg-cancelled/15 text-cancelled',
 }
-const ISSUE_TYPE: Record<string, string> = { bug: '버그', request: '요청', delay: '지연', question: '문의', complaint: '불만', general: '일반' }
 const SEVERITY: Record<string, string> = { critical: '치명', high: '높음', medium: '보통', low: '낮음' }
 
 function fmtDate(iso?: string | null) {
@@ -49,6 +49,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
   const [dragId, setDragId] = useState<string | null>(null)
 
   const titleField = (agent.config.primary_axis as string) || 'client'
+  const issueLabels = useMemo(() => issueLabelMap(agent.config.issue_types as IssueType[] | undefined), [agent.config.issue_types])
   const all = useMemo(() => projects.data ?? [], [projects.data])
 
   const categories = useMemo(
@@ -140,17 +141,18 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
                 status={status} label={label} bar={bar}
                 cards={visible.filter((p) => p.status === status)}
                 titleField={titleField}
+                issueLabels={issueLabels}
                 onOpen={setDetail}
               />
             ))}
           </div>
           <DragOverlay>
-            {dragged && <CardBody p={dragged} titleField={titleField} dragging />}
+            {dragged && <CardBody p={dragged} titleField={titleField} issueLabels={issueLabels} dragging />}
           </DragOverlay>
         </DndContext>
       )}
 
-      {detail && <DetailModal p={detail} agentId={agent.id} onClose={() => setDetail(null)} />}
+      {detail && <DetailModal p={detail} agentId={agent.id} issueLabels={issueLabels} onClose={() => setDetail(null)} />}
     </div>
   )
 }
@@ -205,9 +207,10 @@ function StatRow({ projects }: { projects: ProjectInfo[] }) {
 }
 
 function Column({
-  status, label, bar, cards, titleField, onOpen,
+  status, label, bar, cards, titleField, issueLabels, onOpen,
 }: {
   status: string; label: string; bar: string; cards: ProjectInfo[]; titleField: string
+  issueLabels: Record<string, string>
   onOpen: (p: ProjectInfo) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
@@ -228,14 +231,14 @@ function Column({
         {cards.length === 0 ? (
           <div className="py-6 text-center text-[13px] font-medium text-muted">카드를 여기로 드래그</div>
         ) : (
-          cards.map((p) => <DraggableCard key={p.id} p={p} titleField={titleField} onOpen={onOpen} />)
+          cards.map((p) => <DraggableCard key={p.id} p={p} titleField={titleField} issueLabels={issueLabels} onOpen={onOpen} />)
         )}
       </div>
     </div>
   )
 }
 
-function DraggableCard({ p, titleField, onOpen }: { p: ProjectInfo; titleField: string; onOpen: (p: ProjectInfo) => void }) {
+function DraggableCard({ p, titleField, issueLabels, onOpen }: { p: ProjectInfo; titleField: string; issueLabels: Record<string, string>; onOpen: (p: ProjectInfo) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: p.id })
   return (
     <div
@@ -245,7 +248,7 @@ function DraggableCard({ p, titleField, onOpen }: { p: ProjectInfo; titleField: 
       onClick={() => onOpen(p)}
       className={cn('mb-2 cursor-grab active:cursor-grabbing', isDragging && 'opacity-40')}
     >
-      <CardBody p={p} titleField={titleField} />
+      <CardBody p={p} titleField={titleField} issueLabels={issueLabels} />
     </div>
   )
 }
@@ -260,7 +263,7 @@ function priorityColor(pr?: string | null) {
   return pr === 'critical' ? 'bg-cancelled' : pr === 'high' ? 'bg-onhold' : pr === 'low' ? 'bg-muted' : 'bg-primary'
 }
 
-function CardBody({ p, titleField, dragging }: { p: ProjectInfo; titleField: string; dragging?: boolean }) {
+function CardBody({ p, titleField, issueLabels, dragging }: { p: ProjectInfo; titleField: string; issueLabels: Record<string, string>; dragging?: boolean }) {
   const open = p.issues.filter((i) => i.status !== 'resolved')
   return (
     <div className={cn('rounded-xl border border-line bg-surface p-3.5', dragging && 'shadow-[var(--shadow)]')}>
@@ -282,7 +285,7 @@ function CardBody({ p, titleField, dragging }: { p: ProjectInfo; titleField: str
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {open.slice(0, 3).map((i) => (
             <Badge key={i.id} className="bg-cancelled/15 text-cancelled">
-              {(ISSUE_TYPE[i.type] ?? i.type)}: {i.summary.length > 18 ? i.summary.slice(0, 18) + '…' : i.summary}
+              {(issueLabels[i.type] ?? i.type)}: {i.summary.length > 18 ? i.summary.slice(0, 18) + '…' : i.summary}
             </Badge>
           ))}
         </div>
@@ -296,7 +299,7 @@ function Badge({ children, className }: { children: React.ReactNode; className?:
   return <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', className)}>{children}</span>
 }
 
-function DetailModal({ p, agentId, onClose }: { p: ProjectInfo; agentId: string; onClose: () => void }) {
+function DetailModal({ p, agentId, issueLabels, onClose }: { p: ProjectInfo; agentId: string; issueLabels: Record<string, string>; onClose: () => void }) {
   useEscape(onClose)
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6" onClick={onClose}>
@@ -319,7 +322,7 @@ function DetailModal({ p, agentId, onClose }: { p: ProjectInfo; agentId: string;
               <div key={i.id} className="rounded-lg border border-line p-2.5">
                 <div className="text-sm font-semibold">{i.summary}</div>
                 <div className="mt-1 text-[13px] font-medium text-muted">
-                  유형: {ISSUE_TYPE[i.type] ?? i.type} · 심각도: {SEVERITY[i.severity] ?? i.severity} ·
+                  유형: {issueLabels[i.type] ?? i.type} · 심각도: {SEVERITY[i.severity] ?? i.severity} ·
                   상태: {i.status === 'resolved' ? '해결됨' : i.status === 'in_progress' ? '처리 중' : '미해결'}
                 </div>
               </div>
