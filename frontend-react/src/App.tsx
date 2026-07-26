@@ -6,6 +6,8 @@ import { Login } from '@/pages/Login'
 import { AppShell } from '@/layout/AppShell'
 import { AgentView } from '@/pages/AgentView'
 import { AddAgent } from '@/pages/AddAgent'
+import { Dashboard } from '@/pages/Dashboard'
+import { useAgents } from '@/hooks/useAgents'
 
 function App() {
   const { user, setUser } = useAuth()
@@ -32,13 +34,21 @@ function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<EmptyState />} />
+        <Route index element={<Home />} />
         <Route path="agents/:id" element={<AgentView />} />
         <Route path="add" element={<AddAgent />} />
-        <Route path="*" element={<EmptyState />} />
+        <Route path="*" element={<Home />} />
       </Route>
     </Routes>
   )
+}
+
+/** 에이전트가 있으면 모니터링 대시보드, 없으면 안내 화면. */
+function Home() {
+  const agents = useAgents()
+  if (agents.isLoading) return <div className="grid h-full place-items-center text-muted">불러오는 중…</div>
+  if ((agents.data?.length ?? 0) === 0) return <EmptyState />
+  return <Dashboard />
 }
 
 function EmptyState() {

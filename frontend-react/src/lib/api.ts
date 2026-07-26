@@ -2,6 +2,7 @@ import type {
   AgentInfo,
   CheckEmailStatus,
   ConfigField,
+  DashboardData,
   MailRecord,
   ProjectInfo,
   RunInfo,
@@ -77,6 +78,9 @@ const patch = <T>(path: string, body: unknown) =>
   req<T>(path, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const api = {
+  // ── dashboard ──
+  dashboard: () => req<DashboardData>('/dashboard'),
+
   // ── auth ──
   me: () => req<UserInfo>('/me'),
   checkEmail: (email: string) =>

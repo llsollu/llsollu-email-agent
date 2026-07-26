@@ -6,8 +6,9 @@ export function useProjects(agentId: string, includeArchived = false) {
   return useQuery({
     queryKey: ['projects', agentId, includeArchived],
     queryFn: () => api.projects(agentId, includeArchived),
-    // 60초 전량 폴링 → 포커스/명시적 새로고침 위주 + staleTime 로 부하 완화.
+    // N+1 제거 + 반환 상한 적용으로 이제 목록이 가벼워 폴링 안전 → 새 메일 자동 반영.
     staleTime: 30_000,
+    refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
 }

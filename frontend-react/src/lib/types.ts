@@ -105,3 +105,35 @@ export interface RunInfo {
 }
 
 export type CheckEmailStatus = 'existing' | 'needs_setup' | 'not_company'
+
+export interface AnalysisStats {
+  kpis: {
+    week_analyzed: number; week_prev: number
+    open_issues: number; severity: Record<string, number>
+    active_cards: number; statuses: Record<string, number>
+    direct_ratio: number
+  }
+  daily: { date: string; count: number }[]
+  categories: { name: string; count: number }[]
+  clients: { name: string; count: number }[]
+  issue_types: { type: string; count: number }[]
+  receipt: { to: number; cc: number; other: number }
+  llm: { tokens_in: number; tokens_out: number; count: number }
+}
+
+export interface SchedulerStats {
+  kpis: {
+    week_sent: number; week_failed: number
+    active_schedules: number; total_schedulers: number
+    next_run_at: string | null
+  }
+  daily: { date: string; sent: number; failed: number }[]
+  agents: { id: string; name: string; next_run_at: string | null; enabled: boolean; week_sent: number; week_failed: number }[]
+  recent: { agent: string; subject: string; status: string; sent_at: string | null }[]
+}
+
+export interface DashboardData {
+  agents: { id: string; name: string; template_key: string; status: string; view_type?: string | null }[]
+  analysis: AnalysisStats | null
+  scheduler: SchedulerStats | null
+}
