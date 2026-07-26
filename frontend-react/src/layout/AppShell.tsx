@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Plus } from 'lucide-react'
+import { LogOut, Plus, Shield } from 'lucide-react'
 import { AgentIcon, BrandIcon } from '@/components/AgentIcon'
 import { api } from '@/lib/api'
 import { useAuth } from '@/store/auth'
@@ -73,6 +73,15 @@ export function AppShell() {
         </nav>
 
         <div className="border-t border-line p-3">
+          {user?.is_admin && (
+            <NavLink
+              to="/admin"
+              className={({ isActive }) => cn('mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition',
+                isActive ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-line/50')}
+            >
+              <Shield size={16} /> 관리자
+            </NavLink>
+          )}
           <button
             onClick={() => navigate('/add')}
             className="mb-1 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 font-bold text-white transition hover:bg-primary-hover"

@@ -1,4 +1,9 @@
 import type {
+  AdminAgent,
+  AdminCapacity,
+  AdminOps,
+  AdminUsage,
+  AdminUser,
   AgentInfo,
   CheckEmailStatus,
   ConfigField,
@@ -80,6 +85,17 @@ const patch = <T>(path: string, body: unknown) =>
 export const api = {
   // ── dashboard ──
   dashboard: () => req<DashboardData>('/dashboard'),
+
+  // ── admin ──
+  adminUsers: () => req<AdminUser[]>('/admin/users'),
+  adminPatchUser: (id: string, body: { is_admin?: boolean; is_active?: boolean; reset_password?: boolean }) =>
+    patch<{ status: string }>(`/admin/users/${id}`, body),
+  adminAgents: () => req<AdminAgent[]>('/admin/agents'),
+  adminUsage: () => req<AdminUsage>('/admin/usage'),
+  adminOps: () => req<AdminOps>('/admin/ops'),
+  adminCapacity: () => req<AdminCapacity>('/admin/capacity'),
+  adminPruneRuns: () => post<{ deleted: number }>('/admin/maintenance/prune-runs'),
+  adminArchiveProjects: () => post<{ archived: number }>('/admin/maintenance/archive-projects'),
 
   // ── auth ──
   me: () => req<UserInfo>('/me'),

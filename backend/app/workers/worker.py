@@ -27,6 +27,11 @@ async def dispatch_schedules(ctx) -> dict:
     from zoneinfo import ZoneInfo
 
     now = datetime.now(timezone.utc)
+    # 워커 생존 신호(관리자 운영 상태 표시용). 매분 갱신.
+    try:
+        await ctx["redis"].set("worker:heartbeat", now.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    except Exception:  # noqa: BLE001
+        pass
     dispatched = 0
     async with SessionLocal() as db:
         res = await db.execute(

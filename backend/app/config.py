@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me"
     jwt_expire_hours: int = 720
     secret_enc_key: str = ""
+    admin_emails: str = ""  # 쉼표 구분. 부트스트랩 관리자(항상 관리자 권한 유지)
 
     # data
     database_url: str = "postgresql+asyncpg://llsollu:llsollu@postgres:5432/llsollu_email_agent"
@@ -57,6 +58,13 @@ class Settings(BaseSettings):
     @property
     def graph_configured(self) -> bool:
         return bool(self.graph_tenant_id and self.graph_client_id and self.graph_client_secret)
+
+    @property
+    def admin_emails_set(self) -> set[str]:
+        return {x.strip().lower() for x in self.admin_emails.split(",") if x.strip()}
+
+    def is_bootstrap_admin(self, email: str | None) -> bool:
+        return bool(email) and email.lower() in self.admin_emails_set
 
 
 @lru_cache

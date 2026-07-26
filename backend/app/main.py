@@ -17,6 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import Scope
 
 from app.api.routes import api_router
+from app.config import settings
 from app.framework.registry import all_templates, load_builtin_templates
 from app.security import IPWhitelistMiddleware
 
@@ -39,7 +40,26 @@ class SPAStaticFiles(StaticFiles):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_builtin_templates()
+    await _bootstrap_admins()
     yield
+
+
+async def _bootstrap_admins() -> None:
+    """ADMIN_EMAILS 에 지정된 기존 사용자를 관리자로 승격(존재하는 경우)."""
+    emails = settings.admin_emails_set
+    if not emails:
+        return
+    from sqlalchemy import update
+
+    from app.db import SessionLocal
+    from app.models import User
+
+    try:
+        async with SessionLocal() as db:
+            await db.execute(update(User).where(User.email.in_(emails)).values(is_admin=True))
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        pass  # 부트스트랩 실패가 기동을 막지 않도록
 
 
 app = FastAPI(title="LLSOLLU Email Agent Platform", version="0.1.0", lifespan=lifespan)

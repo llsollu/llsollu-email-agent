@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -18,3 +18,6 @@ class User(Base, TimestampMixin):
     azure_oid: Mapped[str | None] = mapped_column(String(100), unique=True)
     department: Mapped[str | None] = mapped_column(String(120))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 관리자 여부(UI 승격 가능) / 활성 여부(비활성 시 로그인 차단).
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -43,6 +43,7 @@ class UserOut(BaseModel):
     email: str
     display_name: str | None = None
     department: str | None = None
+    is_admin: bool = False
     # 데스크톱(Tauri)용 Bearer 토큰. 로그인/가입 응답에만 채워지고 웹은 무시(쿠키 사용).
     access_token: str | None = None
 

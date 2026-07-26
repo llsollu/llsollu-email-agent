@@ -8,11 +8,17 @@ from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db import get_db
 from app.models import User
 from app.security import decode_session_token
 
 SESSION_COOKIE = "session"
+
+
+def is_effective_admin(user: User) -> bool:
+    """DB 플래그 또는 ADMIN_EMAILS 부트스트랩 → 관리자."""
+    return bool(user.is_admin) or settings.is_bootstrap_admin(user.email)
 
 
 async def get_current_user(
@@ -33,4 +39,12 @@ async def get_current_user(
     user = res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="사용자를 찾을 수 없습니다")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="비활성화된 계정입니다. 관리자에게 문의하세요")
+    return user
+
+
+async def get_admin_user(user: User = Depends(get_current_user)) -> User:
+    if not is_effective_admin(user):
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
     return user

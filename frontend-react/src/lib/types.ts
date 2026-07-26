@@ -5,7 +5,32 @@ export interface UserInfo {
   email: string
   display_name?: string | null
   department?: string | null
+  is_admin?: boolean
   access_token?: string | null
+}
+
+export interface AdminUser {
+  id: string; email: string; display_name?: string | null; department?: string | null
+  last_login_at?: string | null; agent_count: number
+  is_admin: boolean; is_active: boolean; bootstrap: boolean; has_password: boolean
+}
+export interface AdminAgent {
+  id: string; name: string; template_key: string; status: string; error_detail?: string | null
+  owner: string; owner_email: string; last_run_at?: string | null; last_run_status?: string | null
+}
+export interface AdminUsage {
+  monthly: { month: string; tokens: number; count: number }[]
+  by_user: { name: string; tokens: number; count: number }[]
+  month_total_tokens: number; month_total_count: number
+}
+export interface AdminOps {
+  collect_mode: string; worker_heartbeat: string | null; queued: number | null; failed_24h: number
+  recent_failures: { agent: string; trigger: string; error: string; at: string | null }[]
+}
+export interface AdminCapacity {
+  tables: { table: string; rows: number; bytes: number }[]
+  db_bytes: number
+  settings: { run_retention_days: number; project_archive_days: number }
 }
 
 export interface TemplateInfo {

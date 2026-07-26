@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useAuth } from '@/store/auth'
 import { Login } from '@/pages/Login'
@@ -7,6 +7,7 @@ import { AppShell } from '@/layout/AppShell'
 import { AgentView } from '@/pages/AgentView'
 import { AddAgent } from '@/pages/AddAgent'
 import { Dashboard } from '@/pages/Dashboard'
+import { Admin } from '@/pages/Admin'
 import { useAgents } from '@/hooks/useAgents'
 
 function App() {
@@ -37,10 +38,18 @@ function App() {
         <Route index element={<Home />} />
         <Route path="agents/:id" element={<AgentView />} />
         <Route path="add" element={<AddAgent />} />
+        <Route path="admin" element={<AdminGuard />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>
   )
+}
+
+/** 관리자만 접근. 비관리자는 홈으로. */
+function AdminGuard() {
+  const user = useAuth((s) => s.user)
+  if (!user?.is_admin) return <Navigate to="/" replace />
+  return <Admin />
 }
 
 /** 에이전트가 있으면 모니터링 대시보드, 없으면 안내 화면. */

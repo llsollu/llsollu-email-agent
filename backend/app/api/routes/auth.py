@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import SESSION_COOKIE, get_current_user
+from app.auth.deps import SESSION_COOKIE, get_current_user, is_effective_admin
 from app.config import settings
 from app.db import get_db
 from app.models import User
@@ -58,6 +58,7 @@ def _issue_session(response: Response, user: User, remember: bool) -> str:
 
 def _user_out(user: User, token: str) -> UserOut:
     out = UserOut.model_validate(user)
+    out.is_admin = is_effective_admin(user)  # env 부트스트랩 관리자도 반영
     out.access_token = token  # 데스크톱용; 웹은 쿠키를 쓰므로 무시
     return out
 
@@ -85,6 +86,8 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     user = res.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=401, detail="가입되지 않은 계정입니다")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="비활성화된 계정입니다. 관리자에게 문의하세요")
     if not user.password_hash:
         raise HTTPException(status_code=401, detail="비밀번호가 설정되지 않은 계정입니다. 관리자에게 문의하세요")
     if not verify_password(body.password, user.password_hash):
@@ -132,5 +135,7 @@ async def logout(response: Response) -> dict:
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: User = Depends(get_current_user)) -> User:
-    return user
+async def me(user: User = Depends(get_current_user)) -> UserOut:
+    out = UserOut.model_validate(user)
+    out.is_admin = is_effective_admin(user)
+    return out
