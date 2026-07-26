@@ -24,6 +24,9 @@
   --st-cancelled: #f43f5e;
 
   --shadow: 0 6px 24px rgba(20, 184, 166, 0.12);
+
+  --scrollbar-thumb: #c2d6d1;
+  --scrollbar-thumb-hover: #8fb3ab;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,12 +34,14 @@
     --bg: #0e1a1b; --surface: #15262a; --raised: #182c30;
     --ink: #eaf6f3; --muted: #93aaa9; --line: #25403f;
     --shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
+    --scrollbar-thumb: #2f4d4b; --scrollbar-thumb-hover: #43706c;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e1a1b; --surface: #15262a; --raised: #182c30;
   --ink: #eaf6f3; --muted: #93aaa9; --line: #25403f;
   --shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
+  --scrollbar-thumb: #2f4d4b; --scrollbar-thumb-hover: #43706c;
 }
 
 @theme inline {
@@ -73,6 +78,25 @@ body {
 
 /* 키보드 포커스 표시(접근성) */
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+
+/* 테마에 맞춘 스크롤바 (Firefox 표준 + WebKit/Chromium·Tauri) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
 
 /* 로그인 배경 블롭 애니메이션 */
 @keyframes blob {
