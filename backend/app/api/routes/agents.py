@@ -68,6 +68,16 @@ async def create_agent(
     # 메일 분석 에이전트의 대상 메일함은 항상 소유자 본인 메일로 고정.
     if body.template_key == "project_tracker":
         config["mailbox"] = user.email
+        # 계정당 하나만 허용(중복 생성 방지).
+        dup = await db.execute(
+            select(Agent).where(
+                Agent.owner_user_id == user.id,
+                Agent.template_key == "project_tracker",
+                Agent.deleted_at.is_(None),
+            )
+        )
+        if dup.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=400, detail="메일 분석·요약 관리 에이전트는 이미 생성되어 있습니다")
 
     agent = Agent(
         owner_user_id=user.id, template_key=body.template_key, name=body.name,

@@ -18,7 +18,6 @@ const COLUMNS: [string, string, string][] = [
   ['active', '진행 중', 'bg-active'],
   ['on_hold', '보류', 'bg-onhold'],
   ['completed', '완료', 'bg-completed'],
-  ['cancelled', '취소', 'bg-cancelled'],
 ]
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(COLUMNS.map((c) => [c[0], c[1]]))
 const STATUS_BADGE: Record<string, string> = {
