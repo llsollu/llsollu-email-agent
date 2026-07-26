@@ -11,7 +11,7 @@ import { AnalyzeButton } from '@/components/AnalyzeButton'
 import { SourceEmail } from '@/components/SourceEmail'
 import { issueLabelMap, type IssueType } from '@/lib/issueTypes'
 import { useEscape } from '@/lib/useEscape'
-import { cn } from '@/lib/utils'
+import { cn, receiptBadge } from '@/lib/utils'
 
 const COLUMNS: [string, string, string][] = [
   ['storyboard', '스토리보드', 'bg-storyboard'],
@@ -286,7 +286,7 @@ function CardBody({ p, titleField, issueLabels, dragging }: { p: ProjectInfo; ti
       </div>
       <div className="mt-2.5 flex flex-wrap gap-1.5">
         {p.category && <Badge className="bg-primary/10 text-primary">{p.category}</Badge>}
-        <Badge className={STATUS_BADGE[p.status]}>{STATUS_LABEL[p.status] ?? p.status}</Badge>
+        <Badge className={receiptBadge(p.recipient_role).cls}>{receiptBadge(p.recipient_role).label}</Badge>
       </div>
       {p.latest_update && (
         <p className="mt-2.5 border-l-[3px] border-line pl-2 text-[13px] font-medium text-muted line-clamp-3">{p.latest_update}</p>

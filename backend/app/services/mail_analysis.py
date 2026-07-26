@@ -130,6 +130,42 @@ def _recipients(email: dict, graph_key: str, flat_key: str) -> str:
     return str(flat or "")
 
 
+def _addresses(email: dict, graph_key: str, flat_key: str) -> set[str]:
+    """수신/참조 이메일 주소 집합(소문자). role 판별용."""
+    out: set[str] = set()
+    people = email.get(graph_key)
+    if isinstance(people, list):
+        for p in people:
+            ea = (p or {}).get("emailAddress", {}) if isinstance(p, dict) else {}
+            addr = (ea.get("address") or "").strip().lower()
+            if addr:
+                out.add(addr)
+    flat = email.get(flat_key)
+    if isinstance(flat, list):
+        for x in flat:
+            addr = str(x or "").strip().lower()
+            if addr:
+                out.add(addr)
+    elif isinstance(flat, str) and flat:
+        for x in flat.split(","):
+            addr = x.strip().lower()
+            if addr:
+                out.add(addr)
+    return out
+
+
+def _recipient_role(email: dict, mailbox: str | None) -> str:
+    """내(=메일함) 주소가 수신자면 'to'(직접수신), 참조면 'cc'(참조), 아니면 'other'."""
+    me = (mailbox or "").strip().lower()
+    if not me:
+        return "other"
+    if me in _addresses(email, "toRecipients", "to_addresses"):
+        return "to"
+    if me in _addresses(email, "ccRecipients", "cc_addresses"):
+        return "cc"
+    return "other"
+
+
 def _extract(email: dict) -> dict:
     """Graph/webhook payload → 표준 필드."""
     frm = (email.get("from") or {}).get("emailAddress", {})
@@ -211,6 +247,7 @@ async def get_or_analyze(db: AsyncSession, llm, mailbox: str, email: dict) -> Ma
     rec.from_name = f["from_name"]
     rec.to_recipients = f["to_addresses"]
     rec.cc_recipients = f["cc_addresses"]
+    rec.recipient_role = _recipient_role(email, mailbox)
     rec.received_at = _parse_dt(f["received_at"])
     rec.body_text = strip_quoted(f["body"])
     rec.client_name = cls.get("client_name")

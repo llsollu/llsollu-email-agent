@@ -29,6 +29,8 @@ class Project(Base, TimestampMixin):
     # 카드=메일 이므로 발신인도 카드에 표시(mail_records 계승).
     from_name: Mapped[str | None] = mapped_column(String(200))
     from_address: Mapped[str | None] = mapped_column(String(320))
+    # 내 주소 기준 수신 역할: to(직접수신) | cc(참조) | other.
+    recipient_role: Mapped[str | None] = mapped_column(String(8))
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # 최근 갱신을 유발한 원본 메일(mail_records.id). 상세 모달의 "원문 보기"에 사용.
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(

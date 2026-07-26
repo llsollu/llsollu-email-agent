@@ -28,6 +28,8 @@ class MailRecord(Base, TimestampMixin):
     # 수신/참조 전체 내역("이름 <주소>, …" 형식). 원문 모달 표시용.
     to_recipients: Mapped[str | None] = mapped_column(Text)
     cc_recipients: Mapped[str | None] = mapped_column(Text)
+    # 내(=메일함) 주소 기준: to(직접수신) | cc(참조) | other.
+    recipient_role: Mapped[str | None] = mapped_column(String(8))
     direction: Mapped[str] = mapped_column(String(8), default="in")  # in|out
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     body_text: Mapped[str | None] = mapped_column(Text)

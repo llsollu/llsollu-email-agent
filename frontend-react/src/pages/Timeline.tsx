@@ -7,7 +7,7 @@ import { ViewHeader } from '@/components/ViewHeader'
 import { AnalyzeButton } from '@/components/AnalyzeButton'
 import { SourceEmail } from '@/components/SourceEmail'
 import { useEscape } from '@/lib/useEscape'
-import { cn } from '@/lib/utils'
+import { cn, receiptBadge } from '@/lib/utils'
 
 const PALETTE = ['#14b8a6', '#0ea5e9', '#f59e0b', '#8b5cf6', '#ff6b57', '#22c55e', '#e11d48', '#64748b']
 
@@ -152,13 +152,12 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
                     <div className="cursor-pointer rounded-2xl border border-line bg-surface p-3.5 transition hover:shadow-[var(--shadow)]" onClick={() => toggle(e.id)}>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-bold tabular-nums text-muted">{fmtTime(e.received_at)}</span>
-                        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-extrabold', e.direction === 'out' ? 'bg-muted/20 text-muted' : 'bg-brand2/15 text-brand2')}>
-                          {e.direction === 'out' ? '발신' : '수신'}
-                        </span>
+                        {(() => { const b = receiptBadge(e.recipient_role); return (
+                          <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-extrabold', b.cls)}>{b.label}</span>
+                        ) })()}
                         {e.category && (
                           <span className="rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: `color-mix(in srgb, ${col} 16%, transparent)`, color: col }}>{e.category}</span>
                         )}
-                        {e.issue && <span className="ml-auto rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-extrabold text-accent">이슈</span>}
                       </div>
                       <div className="mt-1.5 font-extrabold">{e.subject || '(제목 없음)'}</div>
                       <div className="text-xs font-medium text-muted">{e.from_name || e.from_address} · {e.client_name || '-'} / {e.project_title || '-'}</div>

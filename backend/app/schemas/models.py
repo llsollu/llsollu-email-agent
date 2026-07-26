@@ -139,6 +139,7 @@ class ProjectOut(BaseModel):
     keywords: list | None = None
     from_name: str | None = None
     from_address: str | None = None
+    recipient_role: str | None = None
     updated_at: datetime | None = None
     source_message_id: uuid.UUID | None = None
 
@@ -161,6 +162,7 @@ class TimelineEntry(BaseModel):
     issue: dict | None = None
     points: list | None = None
     keywords: list | None = None
+    recipient_role: str | None = None
 
     class Config:
         from_attributes = True

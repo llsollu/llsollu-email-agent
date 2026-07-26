@@ -133,6 +133,7 @@ class ProjectTrackerTemplate(BaseTemplate):
                 status="storyboard", category=rec.category,
                 latest_update=rec.summary, keywords=rec.keywords or [],
                 from_name=rec.from_name, from_address=rec.from_address,
+                recipient_role=rec.recipient_role,
                 last_activity_at=now, source_message_id=rec.id,
             )
             ctx.db.add(project)
@@ -145,6 +146,7 @@ class ProjectTrackerTemplate(BaseTemplate):
             project.keywords = rec.keywords or []
             project.from_name = rec.from_name
             project.from_address = rec.from_address
+            project.recipient_role = rec.recipient_role
             project.last_activity_at = now
 
         # 이 카드의 이슈는 해당 메일의 이슈 1건만 반영(재실행 시 교체 → 중복 방지).
