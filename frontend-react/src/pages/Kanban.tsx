@@ -3,7 +3,7 @@ import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { RefreshCw, Search, X } from 'lucide-react'
+import { Mail, RefreshCw, Search, X } from 'lucide-react'
 import type { AgentInfo, ProjectInfo } from '@/lib/types'
 import { useMoveProject, useProjects } from '@/hooks/useProjects'
 import { ViewHeader } from '@/components/ViewHeader'
@@ -253,10 +253,15 @@ function DraggableCard({ p, titleField, issueLabels, onOpen }: { p: ProjectInfo;
   )
 }
 
+function senderText(p: ProjectInfo) {
+  return p.from_name || p.from_address || ''
+}
 function primaryText(p: ProjectInfo, axis: string) {
+  if (axis === 'sender') return senderText(p) || '(발신인 미상)'
   return axis === 'project' ? p.title : p.client_name
 }
 function secondaryText(p: ProjectInfo, axis: string) {
+  if (axis === 'sender') return p.client_name || p.title
   return axis === 'project' ? p.client_name : p.title
 }
 function priorityColor(pr?: string | null) {
@@ -271,6 +276,11 @@ function CardBody({ p, titleField, issueLabels, dragging }: { p: ProjectInfo; ti
         <div className="min-w-0 flex-1">
           <div className="font-extrabold">{primaryText(p, titleField)}</div>
           <div className="truncate text-[13px] font-medium text-muted">{secondaryText(p, titleField)}</div>
+          {titleField !== 'sender' && senderText(p) && (
+            <div className="mt-1 flex items-center gap-1 truncate text-[12px] font-medium text-muted">
+              <Mail size={12} className="shrink-0" /> <span className="truncate">{senderText(p)}</span>
+            </div>
+          )}
         </div>
         <span className={cn('mt-1.5 ml-1.5 h-2 w-2 shrink-0 rounded-full', priorityColor(p.priority))} />
       </div>

@@ -3,7 +3,7 @@ import { Info, Plus, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DEFAULT_ISSUE_TYPES, GENERAL, ISSUE_AREAS, type IssueType } from '@/lib/issueTypes'
 
-const AXIS: Record<string, string> = { client: '고객사별', project: '프로젝트별' }
+const AXIS: Record<string, string> = { client: '고객사별', project: '프로젝트별', sender: '발신인별' }
 
 type Props = {
   initialName: string

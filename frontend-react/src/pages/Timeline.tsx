@@ -29,9 +29,10 @@ function monthKey(iso?: string | null) {
 
 export function Timeline({ agent }: { agent: AgentInfo }) {
   const tl = useQuery({ queryKey: ['timeline', agent.id], queryFn: () => api.timeline(agent.id), refetchInterval: 60_000 })
-  const [group, setGroup] = useState<'client' | 'project'>(
-    ((agent.config.primary_axis as string) === 'project' ? 'project' : 'client'),
-  )
+  const [group, setGroup] = useState<'client' | 'project' | 'sender'>(() => {
+    const a = agent.config.primary_axis as string
+    return a === 'project' || a === 'sender' ? a : 'client'
+  })
   const [cat, setCat] = useState('')
   const [sel, setSel] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -39,7 +40,8 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
   const [origin, setOrigin] = useState<string | null>(null)
 
   const all = useMemo(() => tl.data ?? [], [tl.data])
-  const keyOf = (e: TimelineEntry) => (group === 'client' ? e.client_name : e.project_title) || '(미분류)'
+  const keyOf = (e: TimelineEntry) =>
+    (group === 'client' ? e.client_name : group === 'sender' ? (e.from_name || e.from_address) : e.project_title) || '(미분류)'
 
   const categories = useMemo(
     () => [...new Set(all.map((e) => e.category).filter(Boolean) as string[])].sort(),
@@ -94,10 +96,10 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
             className="w-64 rounded-xl border border-line bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-primary" />
         </div>
         <div className="inline-flex rounded-xl border border-line p-1">
-          {(['client', 'project'] as const).map((g) => (
+          {(['client', 'project', 'sender'] as const).map((g) => (
             <button key={g} onClick={() => { setGroup(g); setSel(null) }}
               className={cn('rounded-lg px-4 py-1.5 text-sm font-bold', group === g ? 'bg-primary text-white' : 'text-muted hover:bg-line/50')}>
-              {g === 'client' ? '고객사별' : '프로젝트별'}
+              {g === 'client' ? '고객사별' : g === 'project' ? '프로젝트별' : '발신인별'}
             </button>
           ))}
         </div>
@@ -120,7 +122,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
       <div className="grid flex-1 grid-cols-[220px_1fr] gap-5 overflow-hidden px-6 pb-6">
         {/* 그룹 레일 */}
         <div className="overflow-y-auto">
-          <div className="px-2 py-1 text-xs font-extrabold uppercase tracking-wide text-muted">{group === 'client' ? '고객사' : '프로젝트'}</div>
+          <div className="px-2 py-1 text-xs font-extrabold uppercase tracking-wide text-muted">{group === 'client' ? '고객사' : group === 'project' ? '프로젝트' : '발신인'}</div>
           {groups.map(([k, n]) => (
             <button key={k} onClick={() => setSel(sel === k ? null : k)}
               className={cn('flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm font-bold', sel === k ? 'bg-primary/10 text-primary' : 'hover:bg-line/50')}>

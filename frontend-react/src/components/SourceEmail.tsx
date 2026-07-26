@@ -44,13 +44,21 @@ export function SourceEmail({ agentId, messageId }: { agentId: string; messageId
       {q.isError && <p className="text-sm font-semibold text-cancelled">원문을 불러오지 못했습니다</p>}
       {q.data && (
         <>
-          <dl className="grid grid-cols-[64px_1fr] gap-x-3 gap-y-1 text-[13px]">
+          <dl className="grid grid-cols-[52px_1fr] gap-x-3 gap-y-1 text-[13px]">
             <dt className="font-semibold text-muted">발신</dt>
-            <dd className="font-medium">{q.data.from_name ? `${q.data.from_name} · ` : ''}{q.data.from_address || '-'}</dd>
+            <dd className="font-medium break-all">{q.data.from_name ? `${q.data.from_name} · ` : ''}{q.data.from_address || '-'}</dd>
             <dt className="font-semibold text-muted">수신</dt>
-            <dd className="font-medium">{fmtKst(q.data.received_at)}</dd>
+            <dd className="font-medium break-all">{q.data.to_recipients || '-'}</dd>
+            {q.data.cc_recipients && (
+              <>
+                <dt className="font-semibold text-muted">참조</dt>
+                <dd className="font-medium break-all">{q.data.cc_recipients}</dd>
+              </>
+            )}
             <dt className="font-semibold text-muted">제목</dt>
             <dd className="font-medium">{q.data.subject || '-'}</dd>
+            <dt className="font-semibold text-muted">일시</dt>
+            <dd className="font-medium">{fmtKst(q.data.received_at)}</dd>
           </dl>
           <div className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-2.5 text-[13px] leading-relaxed">
             {body || '(본문 없음)'}

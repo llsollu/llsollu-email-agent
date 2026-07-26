@@ -209,6 +209,8 @@ async def get_or_analyze(db: AsyncSession, llm, mailbox: str, email: dict) -> Ma
     rec.subject = f["subject"]
     rec.from_address = f["from_address"]
     rec.from_name = f["from_name"]
+    rec.to_recipients = f["to_addresses"]
+    rec.cc_recipients = f["cc_addresses"]
     rec.received_at = _parse_dt(f["received_at"])
     rec.body_text = strip_quoted(f["body"])
     rec.client_name = cls.get("client_name")

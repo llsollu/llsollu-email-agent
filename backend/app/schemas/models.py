@@ -137,6 +137,8 @@ class ProjectOut(BaseModel):
     priority: str
     latest_update: str | None = None
     keywords: list | None = None
+    from_name: str | None = None
+    from_address: str | None = None
     updated_at: datetime | None = None
     source_message_id: uuid.UUID | None = None
 
@@ -165,9 +167,11 @@ class TimelineEntry(BaseModel):
 
 
 class MailRecordOut(TimelineEntry):
-    """원문 모달용 — 기본 정보 + 본문."""
+    """원문 모달용 — 기본 정보 + 본문 + 수신/참조 전체."""
     mailbox: str
     body_text: str | None = None
+    to_recipients: str | None = None
+    cc_recipients: str | None = None
 
 
 class IssueOut(BaseModel):

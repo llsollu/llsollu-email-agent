@@ -62,6 +62,8 @@ export interface ProjectInfo {
   priority?: string | null
   latest_update?: string | null
   keywords?: string[] | null
+  from_name?: string | null
+  from_address?: string | null
   updated_at?: string | null
   source_message_id?: string | null
   issues: IssueInfo[]
@@ -87,6 +89,8 @@ export interface TimelineEntry {
 export interface MailRecord extends TimelineEntry {
   mailbox: string
   body_text?: string | null
+  to_recipients?: string | null
+  cc_recipients?: string | null
 }
 
 export interface RunInfo {
