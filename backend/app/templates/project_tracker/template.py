@@ -51,14 +51,17 @@ class ProjectTrackerTemplate(BaseTemplate):
         if not ctx.config.get("mailbox"):
             raise ValueError("mailbox 설정이 필요합니다")
 
+    # 수동 실행 시 한 번에 훑는 최근 메일 수(이미 분석된 건 캐시로 스킵).
+    MANUAL_SCAN = 20
+
     async def handle(self, ctx: RunContext) -> RunResult:
         mailbox = ctx.config.get("mailbox")
-        email = await resolve_email(ctx.graph, ctx.trigger_payload, ctx.trigger_source, mailbox)
-        if not email:
-            return RunResult(ok=True, message="처리할 메일 없음", stats={"processed": 0})
 
-        # 드라이런: 저장 없이 분석 미리보기.
+        # 드라이런: 저장 없이 최신 1건 분석 미리보기.
         if ctx.dry_run:
+            email = await resolve_email(ctx.graph, ctx.trigger_payload, ctx.trigger_source, mailbox)
+            if not email:
+                return RunResult(ok=True, message="처리할 메일 없음", stats={"processed": 0})
             cats = await resolve_categories(ctx.db, mailbox)
             itypes = await resolve_issue_types(ctx.db, mailbox)
             cls = await analyze_email(ctx.llm, email, cats, itypes)
@@ -70,19 +73,49 @@ class ProjectTrackerTemplate(BaseTemplate):
                 "category": cls.get("category"), "summary": cls.get("summary"),
             })
 
-        rec = await get_or_analyze(ctx.db, ctx.llm, mailbox, email)
-        ctx.log("classified", client=rec.client_name, project=rec.project_title, category=rec.category)
+        emails = await self._collect_emails(ctx, mailbox)
+        if not emails:
+            return RunResult(ok=True, message="처리할 메일 없음", stats={"processed": 0, "analyzed": 0})
 
-        processed_project = None
-        if rec.client_name and rec.project_title:
-            processed_project = await self._upsert_project(ctx, rec)
+        # 이미 분석된 message_id 집합(→ 신규만 카운트, 캐시는 스킵).
+        pre = await ctx.db.execute(
+            select(MailRecord.message_id).where(
+                MailRecord.mailbox == mailbox, MailRecord.analyzed.is_(True)
+            )
+        )
+        existing = {mid for (mid,) in pre.all()}
+
+        analyzed = 0
+        last = None
+        for email in emails:
+            mid = email.get("id") or email.get("message_id") or ""
+            was_new = bool(mid) and mid not in existing
+            rec = await get_or_analyze(ctx.db, ctx.llm, mailbox, email)
+            if was_new:
+                analyzed += 1
+            if rec.client_name and rec.project_title:
+                await self._upsert_project(ctx, rec)
+            last = rec
 
         await ctx.db.commit()
+        ctx.log("scanned", scanned=len(emails), analyzed=analyzed)
         return RunResult(ok=True, stats={
-            "processed": 1, "client": rec.client_name, "project": rec.project_title,
-            "category": rec.category,
-            "project_id": str(processed_project) if processed_project else None,
+            "processed": len(emails), "analyzed": analyzed,
+            "client": last.client_name if last else None,
+            "project": last.project_title if last else None,
+            "category": last.category if last else None,
         })
+
+    async def _collect_emails(self, ctx: RunContext, mailbox: str | None) -> list[dict]:
+        """트리거에 특정 메일이 실려오면 그 1건, 수동 실행이면 최근 MANUAL_SCAN 건."""
+        payload = {k: v for k, v in (ctx.trigger_payload or {}).items() if k != "dry_run"}
+        if payload:
+            email = await resolve_email(ctx.graph, ctx.trigger_payload, ctx.trigger_source, mailbox)
+            return [email] if email else []
+        if ctx.trigger_source == "manual" and mailbox:
+            return await ctx.graph.list_messages(mailbox, top=self.MANUAL_SCAN)
+        email = await resolve_email(ctx.graph, ctx.trigger_payload, ctx.trigger_source, mailbox)
+        return [email] if email else []
 
     async def _upsert_project(self, ctx: RunContext, rec: MailRecord):
         """메일 1건 = 카드 1개. source_message_id 기준 멱등 업서트(같은 메일은 재실행해도 카드 1개)."""
