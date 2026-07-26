@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -27,16 +28,20 @@ async def _agent_mailbox(agent_id: uuid.UUID, user: User, db: AsyncSession) -> s
 
 @router.get("/{agent_id}/timeline", response_model=list[TimelineEntry])
 async def timeline(
-    agent_id: uuid.UUID, limit: int = 300,
+    agent_id: uuid.UUID, limit: int = 100, before: datetime | None = None,
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ):
+    """received_at 내림차순 페이지네이션. before(커서)보다 과거 건을 limit 만큼 반환."""
     mailbox = await _agent_mailbox(agent_id, user, db)
-    res = await db.execute(
+    stmt = (
         select(MailRecord)
         .where(MailRecord.mailbox == mailbox, MailRecord.analyzed.is_(True))
         .order_by(MailRecord.received_at.desc().nullslast())
-        .limit(min(limit, 1000))
+        .limit(min(limit, 300))
     )
+    if before is not None:
+        stmt = stmt.where(MailRecord.received_at < before)
+    res = await db.execute(stmt)
     return [TimelineEntry.model_validate(r) for r in res.scalars().all()]
 
 

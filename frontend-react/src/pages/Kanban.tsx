@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
@@ -39,8 +39,9 @@ function fmtDate(iso?: string | null) {
 }
 
 export function Kanban({ agent }: { agent: AgentInfo }) {
-  const projects = useProjects(agent.id)
-  const move = useMoveProject(agent.id)
+  const [showArchived, setShowArchived] = useState(false)
+  const projects = useProjects(agent.id, showArchived)
+  const move = useMoveProject(agent.id, showArchived)
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [sortBy, setSortBy] = useState('updated')
@@ -114,6 +115,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
         query={query} setQuery={setQuery}
         categories={categories} catFilter={catFilter} setCatFilter={setCatFilter}
         sortBy={sortBy} setSortBy={setSortBy}
+        showArchived={showArchived} setShowArchived={setShowArchived}
       />
       <StatRow projects={visible} />
 
@@ -160,6 +162,7 @@ function Toolbar(props: {
   query: string; setQuery: (v: string) => void
   categories: string[]; catFilter: string; setCatFilter: (v: string) => void
   sortBy: string; setSortBy: (v: string) => void
+  showArchived: boolean; setShowArchived: (v: boolean) => void
 }) {
   const sel = 'rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium outline-none focus:border-primary'
   return (
@@ -181,6 +184,13 @@ function Toolbar(props: {
         <option value="category">분류 순</option>
         <option value="client">고객사명 순</option>
       </select>
+      <button
+        onClick={() => props.setShowArchived(!props.showArchived)}
+        className={cn('ml-auto rounded-xl border px-3 py-2 text-sm font-bold',
+          props.showArchived ? 'border-primary bg-primary/10 text-primary' : 'border-line text-muted hover:bg-line/50')}
+      >
+        {props.showArchived ? '아카이브 포함' : '아카이브 숨김'}
+      </button>
     </div>
   )
 }
@@ -205,6 +215,8 @@ function StatRow({ projects }: { projects: ProjectInfo[] }) {
   )
 }
 
+const COLUMN_PAGE = 60 // 컬럼당 초기 렌더 카드 수(대량 누적 시 DOM 폭주 방지)
+
 function Column({
   status, label, bar, cards, titleField, issueLabels, onOpen,
 }: {
@@ -213,6 +225,11 @@ function Column({
   onOpen: (p: ProjectInfo) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
+  const [visibleCount, setVisibleCount] = useState(COLUMN_PAGE)
+  // 필터/정렬로 목록이 줄면 표시 개수도 리셋(과다 노출 방지).
+  useEffect(() => { setVisibleCount(COLUMN_PAGE) }, [status, cards.length])
+  const shown = cards.slice(0, visibleCount)
+  const rest = cards.length - shown.length
   return (
     <div className="flex w-[300px] shrink-0 flex-col rounded-2xl border border-line bg-line/40">
       <div className={cn('h-[3px] rounded-t-2xl', bar)} />
@@ -230,7 +247,17 @@ function Column({
         {cards.length === 0 ? (
           <div className="py-6 text-center text-[13px] font-medium text-muted">카드를 여기로 드래그</div>
         ) : (
-          cards.map((p) => <DraggableCard key={p.id} p={p} titleField={titleField} issueLabels={issueLabels} onOpen={onOpen} />)
+          <>
+            {shown.map((p) => <DraggableCard key={p.id} p={p} titleField={titleField} issueLabels={issueLabels} onOpen={onOpen} />)}
+            {rest > 0 && (
+              <button
+                onClick={() => setVisibleCount((n) => n + COLUMN_PAGE)}
+                className="mb-2 w-full rounded-lg border border-line bg-surface py-2 text-[13px] font-bold text-muted hover:bg-line/50"
+              >
+                {rest}개 더 보기
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

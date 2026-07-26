@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Agent, MailRecord
+from app.models import Agent, LLMJob, MailRecord
 from app.services.mailtext import strip_quoted
 
 ANALYZER_VERSION = "3"
@@ -185,8 +185,8 @@ def _extract(email: dict) -> dict:
     }
 
 
-async def analyze_email(llm, email: dict, categories: list[str], issue_types: list[dict] | None = None) -> dict:
-    """순수 분석(DB 미접근). 현재 메일 내용만 대상으로 LLM 호출."""
+async def analyze_email(llm, email: dict, categories: list[str], issue_types: list[dict] | None = None):
+    """순수 분석(DB 미접근). (분석결과 dict, LLMResult 사용량) 반환."""
     f = _extract(email)
     body = strip_quoted(f["body"])[:8000]
     keys, legend = _issue_type_prompt(issue_types or DEFAULT_ISSUE_TYPES)
@@ -225,8 +225,12 @@ async def resolve_email(graph, trigger_payload: dict | None, trigger_source: str
     return email or None
 
 
-async def get_or_analyze(db: AsyncSession, llm, mailbox: str, email: dict) -> MailRecord:
-    """(mailbox, message_id) 캐시. 없으면 분석·저장 후 MailRecord 반환."""
+async def get_or_analyze(
+    db: AsyncSession, llm, mailbox: str, email: dict,
+    agent_id=None, run_id=None,
+) -> MailRecord:
+    """(mailbox, message_id) 캐시. 없으면 분석·저장 후 MailRecord 반환.
+    실제 LLM 호출이 일어난 경우에만 LLMJob(토큰/사용량)을 적재한다."""
     f = _extract(email)
     mid = f["message_id"]
     rec = None
@@ -240,7 +244,13 @@ async def get_or_analyze(db: AsyncSession, llm, mailbox: str, email: dict) -> Ma
 
     categories = await resolve_categories(db, mailbox)
     issue_types = await resolve_issue_types(db, mailbox)
-    cls = await analyze_email(llm, email, categories, issue_types)
+    cls, usage = await analyze_email(llm, email, categories, issue_types)
+
+    if agent_id is not None:
+        db.add(LLMJob(
+            agent_id=agent_id, run_id=run_id, model=usage.model,
+            tokens_in=usage.tokens_in, tokens_out=usage.tokens_out, status="ok",
+        ))
 
     if rec is None:
         rec = MailRecord(mailbox=mailbox, message_id=mid or f"noid-{datetime.now(timezone.utc).timestamp()}")

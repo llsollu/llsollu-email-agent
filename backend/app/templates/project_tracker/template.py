@@ -64,7 +64,7 @@ class ProjectTrackerTemplate(BaseTemplate):
                 return RunResult(ok=True, message="처리할 메일 없음", stats={"processed": 0})
             cats = await resolve_categories(ctx.db, mailbox)
             itypes = await resolve_issue_types(ctx.db, mailbox)
-            cls = await analyze_email(ctx.llm, email, cats, itypes)
+            cls, _ = await analyze_email(ctx.llm, email, cats, itypes)
             ctx.log("dry_run", client=cls.get("client_name"), project=cls.get("project_title"),
                     category=cls.get("category"), summary=cls.get("summary"))
             return RunResult(ok=True, stats={
@@ -90,7 +90,8 @@ class ProjectTrackerTemplate(BaseTemplate):
         for email in emails:
             mid = email.get("id") or email.get("message_id") or ""
             was_new = bool(mid) and mid not in existing
-            rec = await get_or_analyze(ctx.db, ctx.llm, mailbox, email)
+            rec = await get_or_analyze(ctx.db, ctx.llm, mailbox, email,
+                                       agent_id=ctx.agent_id, run_id=ctx.run_id)
             if was_new:
                 analyzed += 1
             # 고객사만 잡혀도 카드 생성(프로젝트 미상이면 "(미지정)"으로 표기).

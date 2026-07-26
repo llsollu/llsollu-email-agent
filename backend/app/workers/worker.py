@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from arq import cron
 from croniter import croniter
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 
 from app.config import settings
 from app.db import SessionLocal
 from app.framework.registry import load_builtin_templates
-from app.models import Agent, Schedule
+from app.models import Agent, AgentRun, Project, Schedule
 from app.services.graph import graph_client
 from app.services.queue import redis_settings
 from app.workers.tasks import SUBSCRIPTION_MINUTES, run_agent, setup_agent, teardown_agent
@@ -73,16 +73,25 @@ async def poll_mailboxes(ctx) -> dict:
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             await redis.set(cursor_key, now_iso)
             continue
+        # 커서 경계에서의 유실 방지를 위해 overlap 만큼 겹쳐 조회(재분석은 멱등).
         try:
-            messages = await graph_client.list_messages(mailbox, since_iso=since_iso, top=25)
+            base_dt = datetime.fromisoformat(since_iso.replace("Z", "+00:00"))
+            query_since = (base_dt - timedelta(seconds=settings.mail_poll_overlap_sec)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except (ValueError, TypeError):
+            query_since = since_iso
+        try:
+            messages = await graph_client.list_messages(mailbox, since_iso=query_since, top=settings.mail_poll_top)
         except Exception:  # noqa: BLE001
             continue
         newest = since_iso
         for msg in messages:
+            rcv = msg.get("receivedDateTime")
+            # 커서보다 엄격히 최신인 메일만 처리(overlap 로 재조회된 기존 메일 재큐 방지).
+            if not rcv or rcv <= since_iso:
+                continue
             await redis.enqueue_job("run_agent", str(agent.id), "email", msg)
             enqueued += 1
-            rcv = msg.get("receivedDateTime")
-            if rcv and (newest is None or rcv > newest):
+            if newest is None or rcv > newest:
                 newest = rcv
         if newest and newest != since_iso:
             await redis.set(cursor_key, newest)
@@ -124,6 +133,35 @@ async def renew_subscriptions(ctx) -> dict:
     return {"renewed": renewed}
 
 
+async def prune_agent_runs(ctx) -> dict:
+    """보존 기간(run_retention_days) 경과한 실행 이력 삭제 → agent_runs 무한 적재 방지."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.run_retention_days)
+    async with SessionLocal() as db:
+        res = await db.execute(
+            delete(AgentRun).where(AgentRun.started_at < cutoff)
+        )
+        await db.commit()
+        return {"deleted": res.rowcount or 0}
+
+
+async def archive_projects(ctx) -> dict:
+    """완료 후 project_archive_days 경과한 카드를 아카이브 → 보드 무한 누적 방지."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.project_archive_days)
+    now = datetime.now(timezone.utc)
+    async with SessionLocal() as db:
+        res = await db.execute(
+            update(Project)
+            .where(
+                Project.status == "completed",
+                Project.archived_at.is_(None),
+                Project.last_activity_at < cutoff,
+            )
+            .values(archived_at=now)
+        )
+        await db.commit()
+        return {"archived": res.rowcount or 0}
+
+
 async def _startup(ctx) -> None:
     load_builtin_templates()
 
@@ -135,6 +173,9 @@ class WorkerSettings:
         cron(dispatch_schedules, minute=set(range(60)), run_at_startup=False),
         cron(poll_mailboxes, minute=set(range(60)), run_at_startup=False),
         cron(renew_subscriptions, minute={0, 15, 30, 45}, run_at_startup=True),
+        # 장기 운용 정리(하루 1회, 새벽)
+        cron(prune_agent_runs, hour={4}, minute={10}, run_at_startup=False),
+        cron(archive_projects, hour={4}, minute={20}, run_at_startup=False),
     ]
     on_startup = _startup
     max_jobs = 10

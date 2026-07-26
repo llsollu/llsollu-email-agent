@@ -32,6 +32,8 @@ class Project(Base, TimestampMixin):
     # 내 주소 기준 수신 역할: to(직접수신) | cc(참조) | other.
     recipient_role: Mapped[str | None] = mapped_column(String(8))
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 아카이브 시각(완료 후 일정 기간 경과 시 자동 설정). 보드 기본 조회에서 제외.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # 최근 갱신을 유발한 원본 메일(mail_records.id). 상세 모달의 "원문 보기"에 사용.
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("mail_records.id", ondelete="SET NULL")

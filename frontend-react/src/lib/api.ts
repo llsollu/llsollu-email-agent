@@ -108,12 +108,19 @@ export const api = {
     post<{ status: string }>(`/agents/${id}/run?dry_run=${dryRun}`),
 
   // ── project_tracker ──
-  projects: (agentId: string) => req<ProjectInfo[]>(`/agents/${agentId}/projects`),
+  projects: (agentId: string, includeArchived = false) =>
+    req<ProjectInfo[]>(`/agents/${agentId}/projects${includeArchived ? '?include_archived=true' : ''}`),
   setProjectStatus: (agentId: string, projectId: string, status: string) =>
     patch(`/agents/${agentId}/projects/${projectId}/status`, { status }),
 
   // ── mail_timeline ──
-  timeline: (agentId: string) => req<TimelineEntry[]>(`/agents/${agentId}/timeline`),
+  timeline: (agentId: string, opts: { before?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams()
+    if (opts.before) q.set('before', opts.before)
+    if (opts.limit) q.set('limit', String(opts.limit))
+    const qs = q.toString()
+    return req<TimelineEntry[]>(`/agents/${agentId}/timeline${qs ? `?${qs}` : ''}`)
+  },
   message: (agentId: string, messageId: string) =>
     req<MailRecord>(`/agents/${agentId}/messages/${messageId}`),
 

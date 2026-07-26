@@ -2,18 +2,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { ProjectInfo } from '@/lib/types'
 
-export function useProjects(agentId: string) {
+export function useProjects(agentId: string, includeArchived = false) {
   return useQuery({
-    queryKey: ['projects', agentId],
-    queryFn: () => api.projects(agentId),
-    refetchInterval: 60_000,
+    queryKey: ['projects', agentId, includeArchived],
+    queryFn: () => api.projects(agentId, includeArchived),
+    // 60초 전량 폴링 → 포커스/명시적 새로고침 위주 + staleTime 로 부하 완화.
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
   })
 }
 
 /** 상태 변경 — 낙관적 업데이트 + 실패 시 롤백. */
-export function useMoveProject(agentId: string) {
+export function useMoveProject(agentId: string, includeArchived = false) {
   const qc = useQueryClient()
-  const key = ['projects', agentId]
+  const key = ['projects', agentId, includeArchived]
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.setProjectStatus(agentId, id, status),
     onMutate: async ({ id, status }) => {

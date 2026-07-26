@@ -141,6 +141,7 @@ class ProjectOut(BaseModel):
     from_address: str | None = None
     recipient_role: str | None = None
     updated_at: datetime | None = None
+    archived_at: datetime | None = None
     source_message_id: uuid.UUID | None = None
 
     class Config:

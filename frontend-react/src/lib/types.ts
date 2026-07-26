@@ -66,6 +66,7 @@ export interface ProjectInfo {
   from_address?: string | null
   recipient_role?: string | null
   updated_at?: string | null
+  archived_at?: string | null
   source_message_id?: string | null
   issues: IssueInfo[]
 }

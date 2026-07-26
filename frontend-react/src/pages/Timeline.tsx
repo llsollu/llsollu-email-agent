@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { RefreshCw, Search, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AgentInfo, TimelineEntry } from '@/lib/types'
@@ -28,8 +28,17 @@ function monthKey(iso?: string | null) {
   return `${k.getUTCFullYear()}. ${k.getUTCMonth() + 1}월`
 }
 
+const TL_PAGE = 100
+
 export function Timeline({ agent }: { agent: AgentInfo }) {
-  const tl = useQuery({ queryKey: ['timeline', agent.id], queryFn: () => api.timeline(agent.id), refetchInterval: 60_000 })
+  const tl = useInfiniteQuery({
+    queryKey: ['timeline', agent.id],
+    queryFn: ({ pageParam }) => api.timeline(agent.id, { before: pageParam, limit: TL_PAGE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) =>
+      last.length === TL_PAGE ? (last[last.length - 1]?.received_at ?? undefined) : undefined,
+    staleTime: 30_000,
+  })
   const [group, setGroup] = useState<'client' | 'project' | 'sender'>(() => {
     const a = agent.config.primary_axis as string
     return a === 'project' || a === 'sender' ? a : 'client'
@@ -41,7 +50,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [origin, setOrigin] = useState<string | null>(null)
 
-  const all = useMemo(() => tl.data ?? [], [tl.data])
+  const all = useMemo(() => tl.data?.pages.flat() ?? [], [tl.data])
   const issueLabels = useMemo(() => issueLabelMap(agent.config.issue_types as IssueType[] | undefined), [agent.config.issue_types])
   const keyOf = (e: TimelineEntry) =>
     (group === 'client' ? e.client_name : group === 'sender' ? (e.from_name || e.from_address) : e.project_title) || '(미분류)'
@@ -153,7 +162,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
         <div className="overflow-y-auto pr-1">
           {tl.isLoading && <p className="p-4 text-muted">불러오는 중…</p>}
           {tl.isError && <p className="p-4 font-semibold text-cancelled">타임라인을 불러오지 못했습니다</p>}
-          {tl.data && rows.length === 0 && <p className="p-8 text-center font-medium text-muted">조건에 맞는 메일이 없습니다</p>}
+          {!tl.isLoading && rows.length === 0 && <p className="p-8 text-center font-medium text-muted">조건에 맞는 메일이 없습니다</p>}
           <div className="relative pl-6">
             {rows.length > 0 && <div className="absolute bottom-2 left-[9px] top-2 w-0.5 rounded bg-line" />}
             {rows.map((e) => {
@@ -203,6 +212,15 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
               )
             })}
           </div>
+          {tl.hasNextPage && (
+            <button
+              onClick={() => tl.fetchNextPage()}
+              disabled={tl.isFetchingNextPage}
+              className="mx-auto my-4 block rounded-xl border border-line bg-surface px-4 py-2 text-sm font-bold text-muted hover:bg-line/50 disabled:opacity-50"
+            >
+              {tl.isFetchingNextPage ? '불러오는 중…' : '더 보기(과거 메일)'}
+            </button>
+          )}
         </div>
       </div>
 

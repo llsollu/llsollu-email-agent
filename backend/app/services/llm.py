@@ -60,12 +60,12 @@ class LLMClient:
             model=settings.llm_model,
         )
 
-    async def complete_json(self, system: str, user: str) -> dict:
-        """JSON 응답을 강제하고 파싱. 모델이 코드펜스를 붙여도 견고하게 처리."""
+    async def complete_json(self, system: str, user: str) -> tuple[dict, LLMResult]:
+        """JSON 응답을 강제하고 파싱. (파싱결과, 사용량) 반환. 코드펜스도 견고 처리."""
         result = await self.complete(
             system + "\n반드시 유효한 JSON 하나만 출력하라. 설명 금지.", user, temperature=0.1
         )
-        return _extract_json(result.text)
+        return _extract_json(result.text), result
 
 
 def _extract_json(text: str) -> dict:

@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     # scheduler
     scheduler_tz: str = "Asia/Seoul"
     mail_poll_interval_sec: int = 60
+    mail_poll_top: int = 50          # 폴링 1회당 최대 메일 수(버스트 대비)
+    mail_poll_overlap_sec: int = 120  # 커서 경계 유실 방지용 겹침(재분석은 멱등)
+
+    # 장기 운용(정리·아카이브)
+    run_retention_days: int = 90      # agent_runs 보존 기간(경과분 삭제)
+    project_archive_days: int = 30    # 완료 카드 자동 아카이브까지 경과일
+    projects_page_limit: int = 500    # projects API 기본 반환 상한
 
     @property
     def allowed_networks_list(self) -> list[str]:
