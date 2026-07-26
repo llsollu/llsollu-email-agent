@@ -231,7 +231,7 @@ function Column({
   const shown = cards.slice(0, visibleCount)
   const rest = cards.length - shown.length
   return (
-    <div className="flex w-[300px] shrink-0 flex-col rounded-2xl border border-line bg-line/40">
+    <div className="flex min-w-[260px] flex-1 flex-col rounded-2xl border border-line bg-line/40">
       <div className={cn('h-[3px] rounded-t-2xl', bar)} />
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-sm font-extrabold">{label}</span>

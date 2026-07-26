@@ -125,7 +125,7 @@ function IssueTypesField({
   }
   return (
     <div>
-      <div className="text-[13px] font-semibold text-muted">이슈 분류 <span className="font-medium text-muted/70">(선택)</span></div>
+      <div className="text-[15px] font-extrabold">이슈 분류 <span className="text-cancelled">(필수)</span></div>
       <p className="mb-2 text-[12px] font-medium text-muted">
         분야를 고르면 추천 이슈 유형이 채워집니다. 겸직이면 여러 개 골라도 되고(예: 영업 + PM), 아래에서 빼거나 추가하세요. 분석엔 <b>최종 목록</b>만 쓰입니다.
       </p>

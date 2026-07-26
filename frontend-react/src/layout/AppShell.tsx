@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Plus, Shield } from 'lucide-react'
+import { LayoutDashboard, LogOut, Plus, Shield } from 'lucide-react'
 import { AgentIcon, BrandIcon } from '@/components/AgentIcon'
 import { api } from '@/lib/api'
 import { useAuth } from '@/store/auth'
@@ -29,6 +29,20 @@ export function AppShell() {
             <div className="text-base font-extrabold">Email Agent</div>
             <div className="truncate text-[13px] font-medium text-muted">{user?.email}</div>
           </div>
+        </div>
+
+        <div className="px-3 pb-2">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 font-bold transition',
+              isActive ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-line/50')}
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary">
+              <LayoutDashboard size={18} />
+            </span>
+            대시보드
+          </NavLink>
         </div>
 
         <div className="px-5 pb-2 pt-1 text-[13px] font-bold uppercase tracking-wide text-muted">내 에이전트</div>
