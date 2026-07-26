@@ -127,9 +127,13 @@ export function MailSchedulerForm({
   }
 
   // ── 렌더 헬퍼 ──
-  const note = (
+  const note = wizard ? (
     <div className="mb-3 flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] font-semibold text-primary">
       <Info size={16} /> 설정은 생성 후에도 언제든 변경할 수 있어요. (추후 변경 가능)
+    </div>
+  ) : (
+    <div className="mb-3 flex items-start gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] font-semibold text-primary">
+      <Info size={16} className="mt-0.5 shrink-0" /> 설정을 변경하면 변경 이후 발송되는 메일부터 새 설정이 적용됩니다.
     </div>
   )
 
@@ -211,7 +215,7 @@ export function MailSchedulerForm({
         {dataSection}
         {dataError && <p className="mt-2.5 text-sm font-semibold text-cancelled">{dataError}</p>}
         <div className="mt-4 flex items-center">
-          {onDelete && <button onClick={onDelete} disabled={busy} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-cancelled hover:bg-cancelled/10"><Trash2 size={16} /> 삭제</button>}
+          {onDelete && <button onClick={onDelete} disabled={busy} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-cancelled hover:bg-cancelled/10"><Trash2 size={16} /> 에이전트 삭제</button>}
           <button onClick={submit} disabled={busy} className={cn(primaryBtn, 'ml-auto')}>{submitLabel}</button>
         </div>
       </div>

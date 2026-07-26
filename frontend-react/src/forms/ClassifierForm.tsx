@@ -8,13 +8,14 @@ const AXIS: Record<string, string> = { client: '고객사별', project: '프로�
 type Props = {
   initialName: string
   initialConfig: Record<string, unknown>
+  isEdit?: boolean
   busy?: boolean
   submitLabel?: string
   onSubmit: (name: string, config: Record<string, unknown>) => void
   onDelete?: () => void
 }
 
-export function ClassifierForm({ initialName, initialConfig: c, busy = false, submitLabel = '생성', onSubmit, onDelete }: Props) {
+export function ClassifierForm({ initialName, initialConfig: c, isEdit = false, busy = false, submitLabel = '생성', onSubmit, onDelete }: Props) {
   const [name, setName] = useState(initialName)
   const [categories, setCategories] = useState(String(c.categories ?? ''))
   const [axis, setAxis] = useState(AXIS[String(c.primary_axis ?? 'client')] ? String(c.primary_axis) : 'client')
@@ -49,9 +50,15 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] font-semibold text-primary">
-        <Info size={16} /> 설정은 생성 후에도 언제든 변경할 수 있어요. (추후 변경 가능)
-      </div>
+      {isEdit ? (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] font-semibold text-primary">
+          <Info size={16} className="mt-0.5 shrink-0" /> 설정을 변경하면 변경 이후 수신·분석되는 메일부터 새 설정이 적용됩니다. (이미 분석된 항목에는 소급 적용되지 않아요)
+        </div>
+      ) : (
+        <div className="mb-3 flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] font-semibold text-primary">
+          <Info size={16} /> 설정은 생성 후에도 언제든 변경할 수 있어요. (추후 변경 가능)
+        </div>
+      )}
       <p className="mb-3 rounded-xl border border-line bg-bg px-3 py-2.5 text-[13px] font-medium text-muted">
         한 번 설정하면 <b>이슈 보드</b>와 <b>타임라인</b> 두 대시보드를 함께 볼 수 있어요. 대상 메일은 항상 <b>본인 메일함</b>이며, 분석·카테고리는 여기서 공유됩니다.
       </p>
@@ -88,7 +95,7 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
 
       {error && <p className="mt-3 text-sm font-semibold text-cancelled">{error}</p>}
       <div className="mt-5 flex items-center">
-        {onDelete && <button onClick={onDelete} disabled={busy} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-cancelled hover:bg-cancelled/10"><Trash2 size={16} /> 삭제</button>}
+        {onDelete && <button onClick={onDelete} disabled={busy} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-cancelled hover:bg-cancelled/10"><Trash2 size={16} /> 에이전트 삭제</button>}
         <button onClick={submit} disabled={busy} className="ml-auto rounded-xl bg-primary px-5 py-2.5 font-bold text-white hover:bg-primary-hover disabled:opacity-50">{submitLabel}</button>
       </div>
     </div>

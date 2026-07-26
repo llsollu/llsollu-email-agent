@@ -65,7 +65,7 @@ export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: 
         )}
         {isClassifier && (
           <ClassifierForm
-            initialName={agent.name} initialConfig={agent.config}
+            initialName={agent.name} initialConfig={agent.config} isEdit
             busy={busy} submitLabel="저장" onSubmit={save} onDelete={() => setConfirmDel(true)}
           />
         )}
@@ -77,8 +77,8 @@ export function SettingsDialog({ agent, onClose }: { agent: AgentInfo; onClose: 
       {confirmDel && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-6" onClick={() => setConfirmDel(false)}>
           <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow)]" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-extrabold">삭제</h3>
-            <p className="mt-2 text-sm font-medium text-muted">"{agent.name}" 을(를) 삭제할까요?</p>
+            <h3 className="text-base font-extrabold">에이전트 삭제</h3>
+            <p className="mt-2 text-sm font-medium text-muted">"{agent.name}" 을(를) 정말 삭제할까요? 이 작업은 되돌릴 수 없습니다.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setConfirmDel(false)} className="rounded-xl px-4 py-2 font-semibold text-muted hover:bg-line/50">취소</button>
               <button onClick={del} disabled={busy} className="rounded-xl bg-cancelled px-4 py-2 font-bold text-white disabled:opacity-50">삭제</button>

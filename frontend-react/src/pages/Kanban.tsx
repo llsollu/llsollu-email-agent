@@ -198,7 +198,8 @@ function Toolbar(props: {
 function StatRow({ projects }: { projects: ProjectInfo[] }) {
   const active = projects.filter((p) => p.status === 'active').length
   const onhold = projects.filter((p) => p.status === 'on_hold').length
-  const issues = projects.filter((p) => p.issues.some((i) => i.status !== 'resolved')).length
+  // 미해결 = 스토리보드 + 진행 중 + 보류 (완료가 아닌 카드)
+  const issues = projects.filter((p) => ['storyboard', 'active', 'on_hold'].includes(p.status)).length
   const box = (v: number, l: string, danger = false) => (
     <div className="rounded-2xl border border-line bg-surface px-5 py-3">
       <div className={cn('text-2xl font-extrabold', danger ? 'text-cancelled' : 'text-primary')}>{v}</div>
