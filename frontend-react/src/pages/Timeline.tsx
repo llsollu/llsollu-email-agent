@@ -36,6 +36,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
   })
   const [cat, setCat] = useState('')
   const [sel, setSel] = useState<string | null>(null)
+  const [railSort, setRailSort] = useState<'count' | 'name'>('count')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [origin, setOrigin] = useState<string | null>(null)
@@ -54,9 +55,14 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
   const groups = useMemo(() => {
     const m: Record<string, number> = {}
     all.forEach((e) => { m[keyOf(e)] = (m[keyOf(e)] || 0) + 1 })
-    return Object.entries(m).sort((a, b) => b[1] - a[1])
+    return Object.entries(m).sort((a, b) => {
+      const au = a[0] === '(미분류)', bu = b[0] === '(미분류)'
+      if (au !== bu) return au ? 1 : -1 // (미분류)는 항상 맨 아래
+      if (railSort === 'name') return a[0].localeCompare(b[0], 'ko')
+      return b[1] - a[1] // 기본: 건수 많은 순
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, group])
+  }, [all, group, railSort])
 
   const rows = useMemo(() => {
     const q = query.toLowerCase()
@@ -124,7 +130,16 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
       <div className="grid flex-1 grid-cols-[220px_1fr] gap-5 overflow-hidden px-6 pb-6">
         {/* 그룹 레일 */}
         <div className="overflow-y-auto">
-          <div className="px-2 py-1 text-xs font-extrabold uppercase tracking-wide text-muted">{group === 'client' ? '고객사' : group === 'project' ? '프로젝트' : '발신인'}</div>
+          <div className="flex items-center justify-between px-2 py-1">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-muted">{group === 'client' ? '고객사' : group === 'project' ? '프로젝트' : '발신인'}</span>
+            <button
+              onClick={() => setRailSort((s) => (s === 'count' ? 'name' : 'count'))}
+              className="rounded-md px-1.5 py-0.5 text-[11px] font-bold text-muted hover:bg-line/50 hover:text-ink"
+              title="정렬 기준 전환"
+            >
+              {railSort === 'count' ? '건수순' : '이름순'}
+            </button>
+          </div>
           {groups.map(([k, n]) => (
             <button key={k} onClick={() => setSel(sel === k ? null : k)}
               className={cn('flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm font-bold', sel === k ? 'bg-primary/10 text-primary' : 'hover:bg-line/50')}>

@@ -16,7 +16,8 @@ from app.models import Agent, MailRecord
 from app.services.mailtext import strip_quoted
 
 ANALYZER_VERSION = "3"
-DEFAULT_CATEGORIES = ["제안", "계약", "개발", "납품", "유지보수", "문의", "기타"]
+# 사용자 지정 자동 태그가 없을 때의 기본 태그(항상 후보에 포함).
+UNCLASSIFIED = "미지정"
 # 이슈 유형 기본값 = 개발 분야(설정 없을 때). 프론트 issueTypes.ts 와 동일하게 유지.
 DEFAULT_ISSUE_TYPES = [
     {"key": "bug", "label": "버그"},
@@ -61,7 +62,7 @@ USER_TMPL = """다음 이메일(현재 메시지 본문)만 분석하라. 인용
 
 
 async def resolve_categories(db: AsyncSession, mailbox: str) -> list[str]:
-    """메일함을 보는 활성 수신형 에이전트들의 categories 설정을 합집합으로 → 공유 taxonomy."""
+    """사용자 지정 자동 태그(합집합) + '미지정'. 아무것도 없으면 ['미지정']만."""
     res = await db.execute(
         select(Agent).where(
             Agent.template_key == "project_tracker",
@@ -78,7 +79,9 @@ async def resolve_categories(db: AsyncSession, mailbox: str) -> list[str]:
             c = c.strip()
             if c and c not in cats:
                 cats.append(c)
-    return cats or DEFAULT_CATEGORIES
+    if UNCLASSIFIED not in cats:
+        cats.append(UNCLASSIFIED)
+    return cats
 
 
 async def resolve_issue_types(db: AsyncSession, mailbox: str) -> list[dict]:

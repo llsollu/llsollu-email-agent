@@ -58,8 +58,11 @@ export function ClassifierForm({ initialName, initialConfig: c, busy = false, su
       <div className="space-y-3">
         <label className="block"><span className="mb-1 block text-[13px] font-semibold text-muted">이름</span>
           <input className={inp} value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="block"><span className="mb-1 block text-[13px] font-semibold text-muted">메일 분류 카테고리</span>
-          <input className={inp} value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="쉼표로 구분. 예: 제안,계약,개발,납품,유지보수,문의" /></label>
+        <label className="block">
+          <span className="mb-1 block text-[13px] font-semibold text-muted">사용자 지정 자동 태그 <span className="font-medium text-muted/70">(선택)</span></span>
+          <input className={inp} value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="쉼표로 구분. 예: 제안,계약,개발,납품,유지보수,문의" />
+          <span className="mt-1 block text-[12px] font-medium text-muted">비우면 "미지정"만 사용하고, 입력하면 입력한 태그 + "미지정"으로 분류합니다.</span>
+        </label>
 
         <div>
           <div className="text-[15px] font-extrabold">기본 보기 설정</div>
