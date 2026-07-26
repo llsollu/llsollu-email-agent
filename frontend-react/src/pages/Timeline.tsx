@@ -6,6 +6,7 @@ import type { AgentInfo, TimelineEntry } from '@/lib/types'
 import { ViewHeader } from '@/components/ViewHeader'
 import { AnalyzeButton } from '@/components/AnalyzeButton'
 import { SourceEmail } from '@/components/SourceEmail'
+import { issueLabelMap, type IssueType } from '@/lib/issueTypes'
 import { useEscape } from '@/lib/useEscape'
 import { cn, receiptBadge } from '@/lib/utils'
 
@@ -40,6 +41,7 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
   const [origin, setOrigin] = useState<string | null>(null)
 
   const all = useMemo(() => tl.data ?? [], [tl.data])
+  const issueLabels = useMemo(() => issueLabelMap(agent.config.issue_types as IssueType[] | undefined), [agent.config.issue_types])
   const keyOf = (e: TimelineEntry) =>
     (group === 'client' ? e.client_name : group === 'sender' ? (e.from_name || e.from_address) : e.project_title) || '(미분류)'
 
@@ -157,6 +159,11 @@ export function Timeline({ agent }: { agent: AgentInfo }) {
                         ) })()}
                         {e.category && (
                           <span className="rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: `color-mix(in srgb, ${col} 16%, transparent)`, color: col }}>{e.category}</span>
+                        )}
+                        {e.issue?.type && (
+                          <span className="ml-auto rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-extrabold text-accent">
+                            {issueLabels[e.issue.type] ?? e.issue.type}
+                          </span>
                         )}
                       </div>
                       <div className="mt-1.5 font-extrabold">{e.subject || '(제목 없음)'}</div>

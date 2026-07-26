@@ -93,7 +93,8 @@ class ProjectTrackerTemplate(BaseTemplate):
             rec = await get_or_analyze(ctx.db, ctx.llm, mailbox, email)
             if was_new:
                 analyzed += 1
-            if rec.client_name and rec.project_title:
+            # 고객사만 잡혀도 카드 생성(프로젝트 미상이면 "(미지정)"으로 표기).
+            if rec.client_name:
                 await self._upsert_project(ctx, rec)
             last = rec
 
@@ -129,7 +130,7 @@ class ProjectTrackerTemplate(BaseTemplate):
         now = datetime.now(timezone.utc)
         if project is None:
             project = Project(
-                agent_id=ctx.agent_id, client_name=rec.client_name, title=rec.project_title,
+                agent_id=ctx.agent_id, client_name=rec.client_name, title=rec.project_title or "(미지정)",
                 status="storyboard", category=rec.category,
                 latest_update=rec.summary, keywords=rec.keywords or [],
                 from_name=rec.from_name, from_address=rec.from_address,
@@ -140,7 +141,7 @@ class ProjectTrackerTemplate(BaseTemplate):
             await ctx.db.flush()
         else:
             project.client_name = rec.client_name
-            project.title = rec.project_title
+            project.title = rec.project_title or "(미지정)"
             project.category = rec.category
             project.latest_update = rec.summary
             project.keywords = rec.keywords or []
