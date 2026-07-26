@@ -190,6 +190,7 @@ function RunTile({ r }: { r: RunInfo }) {
       <div className="flex items-center gap-2">
         <span className={cn('h-2.5 w-2.5 rounded-full', dot)} />
         <span className="font-bold">{TRIGGER[r.trigger_source] ?? r.trigger_source} · {RUN_STATUS[r.status] ?? r.status}</span>
+        <span className="ml-auto shrink-0 text-xs font-medium text-muted">{fmtKst(r.started_at)}</span>
       </div>
       <div className="mt-1 pl-4.5 text-sm">
         <div className="font-medium">{parts.length ? parts.join(' · ') : '기록 없음'}</div>

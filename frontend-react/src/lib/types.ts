@@ -125,6 +125,8 @@ export interface RunInfo {
   id: string
   trigger_source: string
   status: string
+  started_at?: string | null
+  finished_at?: string | null
   error?: string | null
   stats: Record<string, unknown>
 }
