@@ -67,8 +67,37 @@ class MailSchedulerTemplate(BaseTemplate):
 
         file_url = (cfg.get("sharepoint_file_url") or "").strip()
         if file_url:
-            data = await ctx.graph.download_shared_file(file_url)
-            columns, rows = parse_table(data)
+            # (1) 참조 파일 자체를 가져오지 못함(파일 삭제/이동/권한/네트워크 등) → run-level 오류 알림.
+            try:
+                data = await ctx.graph.download_shared_file(file_url)
+                columns, rows = parse_table(data)
+            except Exception as e:  # noqa: BLE001
+                ctx.log("collect_failed", url=file_url, error=str(e))
+                if not ctx.dry_run:
+                    await self._send_run_alert(
+                        ctx, sender, cfg.get("alert_email"), recipient, cc, subject_tmpl, body_tmpl, today, {},
+                        reason=f"참조 파일을 가져오지 못했습니다: {file_url}", detail=str(e),
+                    )
+                return RunResult(ok=False, message="참조 파일 수집 실패",
+                                 stats={"error": str(e), "sent": 0, "failed": 0, "dry_run": ctx.dry_run})
+
+            # (2) 템플릿이 참조하는 데이터 필드(컬럼)가 파일에서 사라짐 → 발송 중단 + 알림.
+            used = set(eb.used_columns(subject_tmpl)) | set(eb.used_columns(body_tmpl))
+            if date_column:
+                used.add(date_column)
+            missing = sorted(c for c in used if c not in columns)
+            if missing:
+                ctx.log("missing_columns", missing=missing)
+                if not ctx.dry_run:
+                    await self._send_run_alert(
+                        ctx, sender, cfg.get("alert_email"), recipient, cc, subject_tmpl, body_tmpl, today,
+                        rows[0] if rows else {},
+                        reason="참조 파일에 필요한 데이터 필드가 없습니다: " + ", ".join(missing),
+                        detail=f"파일의 현재 컬럼: {', '.join(columns) or '(없음)'}",
+                    )
+                return RunResult(ok=False, message="필요한 데이터 필드 없음",
+                                 stats={"error": "missing_columns", "missing_columns": missing,
+                                        "sent": 0, "failed": 0, "dry_run": ctx.dry_run})
         else:
             # 참조 파일 없음: 데이터가 없어도 템플릿만으로 1건 발송(발송기준일은 무시).
             columns, rows = [], [{}]
@@ -118,11 +147,22 @@ class MailSchedulerTemplate(BaseTemplate):
             "sent": sent, "failed": failed, "dry_run": ctx.dry_run,
         })
 
-    async def _send_alert(self, ctx: RunContext, sender: str, alert_email, failures: list[dict]) -> None:
-        """발송 실패 요약을 오류 메시지 + 보내려던 메일 원문과 함께 알림 메일로 전송."""
-        alert_to = (alert_email or "").strip() or sender
-        if not alert_to:
+    @staticmethod
+    def _alert_to(alert_email, sender: str) -> str:
+        return (alert_email or "").strip() or sender
+
+    async def _deliver_alert(self, ctx: RunContext, sender: str, to: str, subject: str, body: str) -> None:
+        """알림 메일 전송(전송 실패해도 실행이 죽지 않도록 로깅만)."""
+        if not to:
             return
+        try:
+            await ctx.graph.send_mail(sender, to, subject, body)
+            ctx.log("alert_sent", to=to)
+        except Exception as e:  # noqa: BLE001
+            ctx.log("alert_failed", to=to, error=str(e))
+
+    async def _send_alert(self, ctx: RunContext, sender: str, alert_email, failures: list[dict]) -> None:
+        """개별 발송 실패 요약(오류 메시지 + 보내려던 메일 원문)."""
         parts = [f"메일 자동 발송 중 {len(failures)}건이 실패했습니다.", ""]
         for i, f in enumerate(failures, 1):
             cc_line = f" / 참조: {f['cc']}" if f.get("cc") else ""
@@ -137,9 +177,29 @@ class MailSchedulerTemplate(BaseTemplate):
                 "─" * 20,
                 "",
             ]
-        body = "\n".join(parts)
-        try:
-            await ctx.graph.send_mail(sender, alert_to, "[자동 발송 오류] 발송 실패 알림", body)
-            ctx.log("alert_sent", to=alert_to, failures=len(failures))
-        except Exception as e:  # noqa: BLE001
-            ctx.log("alert_failed", to=alert_to, error=str(e))
+        await self._deliver_alert(ctx, sender, self._alert_to(alert_email, sender),
+                                  "[자동 발송 오류] 발송 실패 알림", "\n".join(parts))
+
+    async def _send_run_alert(
+        self, ctx: RunContext, sender: str, alert_email, recipient: str, cc: str,
+        subject_tmpl: str, body_tmpl: str, today, preview_row: dict, *, reason: str, detail: str,
+    ) -> None:
+        """run-level 오류(파일 수집 실패·데이터 필드 소실 등) 알림.
+        보내려던 메일 원문을 함께 싣고, 수집 안 된 데이터는 '<데이터 미수집>'으로 표시."""
+        subj = eb.render(subject_tmpl, preview_row, today, mark_missing=True).strip() or "(제목 없음)"
+        bod = eb.render(body_tmpl, preview_row, today, mark_missing=True)
+        cc_line = f" / 참조: {cc}" if cc else ""
+        parts = [
+            "메일 자동 발송을 실행하지 못했습니다.",
+            "",
+            f"사유: {reason}",
+            f"상세: {detail}",
+            "",
+            "── 보내려던 메일(미리보기) ──",
+            f"수신자: {recipient}{cc_line}",
+            f"제목: {subj}",
+            "본문:",
+            bod,
+        ]
+        await self._deliver_alert(ctx, sender, self._alert_to(alert_email, sender),
+                                  "[자동 발송 오류] 실행 실패 알림", "\n".join(parts))
