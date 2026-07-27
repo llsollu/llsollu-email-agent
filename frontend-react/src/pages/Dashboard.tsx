@@ -93,9 +93,9 @@ function AnalysisSection({ s, issueLabels }: { s: AnalysisStats; issueLabels: Re
           sub={deltaPct === null ? '지난주 없음' : `${deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(deltaPct)}% vs 지난주`}
           subColor={deltaPct === null ? 'muted' : deltaPct >= 0 ? 'active' : 'cancelled'} />
         <Kpi value={k.open_issues} label="미해결 이슈" danger
-          sub={`치명 ${k.severity.critical ?? 0} · 높음 ${k.severity.high ?? 0}`} />
+          sub={`스토리보드 ${k.statuses.storyboard ?? 0} · 진행 ${k.statuses.active ?? 0} · 보류 ${k.statuses.on_hold ?? 0}`} />
         <Kpi value={k.active_cards} label="진행 중 카드"
-          sub={`보류 ${k.statuses.on_hold ?? 0} · 스토리보드 ${k.statuses.storyboard ?? 0}`} />
+          sub={`진행 ${k.statuses.active ?? 0} · 보류 ${k.statuses.on_hold ?? 0}`} />
         <Kpi value={`${k.direct_ratio}%`} label="직접수신 비율"
           sub={`참조 ${pct(s.receipt.cc, s.receipt)}% · 기타 ${pct(s.receipt.other, s.receipt)}%`} />
       </div>

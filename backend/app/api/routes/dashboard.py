@@ -149,7 +149,8 @@ async def _analysis(db, mailbox, tracker_ids, d7, d14, d30, d90, month_start) ->
         .where(LLMJob.agent_id.in_(tracker_ids), LLMJob.created_at >= month_start)
     )).one()
 
-    open_issues = sum(v for _, v in itypes)
+    # 미해결 이슈 = 스토리보드 + 진행 중 + 보류 카드 합(완료 제외). 칸반 보드와 동일 정의.
+    open_issues = statuses.get("storyboard", 0) + statuses.get("active", 0) + statuses.get("on_hold", 0)
     to, cc, other = roles.get("to", 0), roles.get("cc", 0), roles.get("other", 0)
     role_total = to + cc + other or 1
     active_cards = statuses.get("active", 0) + statuses.get("on_hold", 0)
