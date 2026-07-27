@@ -1,5 +1,7 @@
 # 04. 사용자 흐름
 
+> ⚠️ **일부 outdated**: 화면은 이제 **React(Vite+TS)+Tauri** 기준(구 Flutter 서술). API 경로·흐름은 대체로 유효하나, 현재는 **로그인 홈=통계 대시보드**, **관리자 페이지(/admin)**, 이슈 보드+타임라인 2뷰, 메일 1건=카드 1개 등이 추가됨. 최신 요약은 [09-handoff](09-handoff.md), 데이터/뷰는 [03](03-data-model.md)·[08](08-shared-analysis-and-timeline.md).
+
 ## 화면 흐름
 
 모든 API 경로는 `/api` 하위다.

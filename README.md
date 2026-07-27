@@ -4,8 +4,9 @@
 
 사용자는 웹에서 클릭 몇 번으로 템플릿을 골라 자기만의 에이전트를 구성·운영한다. 각 에이전트는 정해진 트리거(새 메일 수신 또는 지정 시각)에 따라 자동으로 동작하고, 전용 대시보드에서 결과를 확인·관리한다.
 
-> 이 저장소는 **설계 문서(docs/) + 구현 코드(backend/, frontend/, deploy/)**를 담는다.
+> 이 저장소는 **설계 문서(docs/) + 구현 코드(backend/, frontend-react/, deploy/)**를 담는다.
 > 실행 방법은 [backend/README.md](backend/README.md), 배포는 [deploy/docker-compose.yml](deploy/docker-compose.yml) 참고.
+> 프론트엔드는 **React(Vite+TS)+Tauri**로 전환 완료(구 `frontend/` Flutter는 삭제). 상세 [docs/07](docs/07-react-tauri-migration.md), 최신 인수인계 [docs/09](docs/09-handoff.md).
 
 ---
 
@@ -15,10 +16,12 @@
 
 | 템플릿 | 설명 | 뷰 |
 |---|---|---|
-| **project_tracker** — 메일 분류·요약 → 고객사 프로젝트 관리 | 지정한 메일함의 수신 메일을 LLM으로 분류·요약해 고객사/프로젝트/이슈를 자동 갱신 | **칸반 보드** |
-| **mail_scheduler** — 메일 자동 발송 스케줄링 | 참조 스프레드시트(공유 파일)와 발행일 규칙을 바탕으로 정해진 시각에 지정 양식의 메일을 자동 발송하고, 필수 데이터 누락 시 담당자에게 알림 | **스케줄러 패널**(트리거·규칙·참조파일·실행 로그·on/off) |
+| **project_tracker** — 메일 분석·요약 관리 | 본인 메일함의 수신 메일을 LLM으로 분석·요약(고객사/프로젝트/이슈/카테고리 + 검색용 키워드·유사어)하고 **메일 1건을 카드 1개**로 관리. 이슈 분류는 분야별 추천으로 커스터마이즈. 계정당 1개만 생성 | **이슈 보드(칸반) + 타임라인** 두 뷰 |
+| **mail_scheduler** — 메일 자동 발송 스케줄링 | 참조 스프레드시트(공유 파일, 선택)와 발송기준일 규칙을 바탕으로 정해진 시각에 지정 양식의 메일을 자동 발송. **발송 실패·파일 소실·데이터 필드 소실 시 담당자에게 오류 알림 메일**(원문·미수집 표시 포함) | **스케줄러 패널**(트리거·규칙·참조파일·실행 로그·on/off) |
 
 **핵심 설계 목표**는 "새 템플릿을 백엔드 모듈 한 개(+ 필요 시 프론트 뷰 하나)로 추가할 수 있는 프레임워크"를 만드는 것이다. 두 기본 템플릿도 이 프레임워크 위의 플러그인이다.
+
+로그인 홈은 에이전트 보유 시 **전체 통계 대시보드**(집계·60초 자동 갱신)로, 관리자는 **관리자 페이지**(사용자·에이전트·LLM 사용량·운영 상태·데이터 용량)로 접근한다.
 
 ---
 
@@ -32,17 +35,21 @@
 | [docs/04-user-flow.md](docs/04-user-flow.md) | 화면 흐름 + 각 단계의 API 호출 |
 | [docs/05-roadmap.md](docs/05-roadmap.md) | 구현 단계와 현재 상태 |
 | [docs/06-constraints-and-risks.md](docs/06-constraints-and-risks.md) | 확정 결정·제약·리스크 |
+| [docs/07-react-tauri-migration.md](docs/07-react-tauri-migration.md) | 프론트 Flutter→React+Tauri 전환(완료) |
+| [docs/08-shared-analysis-and-timeline.md](docs/08-shared-analysis-and-timeline.md) | 공유 메일 분석 + 타임라인 뷰 |
+| [docs/09-handoff.md](docs/09-handoff.md) | **세션 인수인계 — 현재 상태 크리티컬 메모(최우선 참고)** |
 
 ## 한눈에 보는 스택
 
-- **백엔드**: FastAPI (uv, Python 3.12) · SQLAlchemy 2.0(async) + Alembic · Pydantic v2
-- **데이터**: PostgreSQL 16 · Redis 7
-- **비동기 처리**: Redis 큐(arq) + 워커 · LLM 호출은 Redis 동시성 게이트 경유
-- **스케줄러/수신**: 워커의 매분 cron이 도래한 스케줄을 큐에 투입하고, 메일함을 폴링해 수신 메일을 처리
+- **백엔드**: FastAPI (uv, Python 3.12) · SQLAlchemy 2.0(async) · Pydantic v2
+  - DB 마이그레이션은 실무상 `init_db`(create_all, 누락 테이블 생성) + psql 수동 `ALTER TABLE`로 운용(Alembic은 스캐폴딩만 존재, 미사용)
+- **데이터**: PostgreSQL · Redis 7
+- **비동기 처리**: Redis 큐(arq) + 워커 · LLM 호출은 Redis 동시성 게이트 경유 · 매일 정리 cron(오래된 실행 이력 prune, 완료 카드 아카이브)
+- **스케줄러/수신**: 워커의 매분 cron이 도래한 스케줄을 큐에 투입하고, 메일함을 폴링해 수신 메일을 처리(신규만, overlap 재조회)
 - **메일 I/O**: Microsoft Graph (앱 전용 client credentials) — 수신(폴링, webhook 지원)·발송
-- **LLM**: 사내SLM (OpenAI 호환 `http://<사내-LLM-호스트-endpoint>`)
-- **인증**: 회사 이메일 로그인 + JWT 세션 쿠키 · **백엔드 IP 화이트리스트**(사내망 전용)
-- **프론트엔드**: Flutter — Web(+ 향후 Desktop/macOS)
+- **LLM**: 사내SLM (OpenAI 호환) · 사용량은 `llm_jobs`에 토큰 적재
+- **인증**: 회사 이메일 로그인 + JWT 세션 쿠키 · **관리자 역할(is_admin)·계정 활성(is_active)** · **백엔드 IP 화이트리스트**(사내망 전용)
+- **프론트엔드**: **React(Vite + TypeScript) + Tauri** — Web(동일 오리진 서빙) + 데스크톱(Windows/CI 빌드)
 - **배포**: Docker Compose (리버스 프록시 없음 — 서버 IP:포트 직접 접속)
 
 ### 접속
