@@ -42,7 +42,7 @@ export function Dashboard() {
       <div className="max-w-[880px] p-7">
         <div className="mb-5 flex items-baseline justify-between">
           <h1 className="text-2xl font-extrabold tracking-tight">대시보드</h1>
-          <span className="text-xs font-medium text-muted">45초마다 자동 갱신</span>
+          <span className="text-xs font-medium text-muted">60초마다 자동 갱신</span>
         </div>
 
         {q.isLoading && <p className="text-sm text-muted">불러오는 중…</p>}

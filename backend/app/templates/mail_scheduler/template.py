@@ -39,6 +39,8 @@ class MailSchedulerTemplate(BaseTemplate):
                         help="쉼표로 여러 명 지정 가능"),
             ConfigField("cc_email", "참조 이메일", "string", required=False,
                         help="쉼표로 여러 명 지정 가능(선택)"),
+            ConfigField("alert_email", "오류 알림 이메일", "email", required=False,
+                        help="발송 실패 시 알림을 받을 주소(비우면 발신자 본인)"),
             ConfigField("date_column", "발송기준일(컬럼명)", "string", required=False,
                         help="비우면 확인 주기마다 전체 발송"),
             ConfigField("cron", "확인 주기(cron)", "cron", required=False, default="0 9 * * *"),
@@ -79,6 +81,7 @@ class MailSchedulerTemplate(BaseTemplate):
         ctx.log("parsed", total=len(rows), targets=len(targets), by_date=bool(date_column))
 
         sent = failed = 0
+        failures: list[dict] = []
         for row in targets:
             subject = eb.render(subject_tmpl, row, today).strip() or "(제목 없음)"
             body = eb.render(body_tmpl, row, today)
@@ -97,9 +100,46 @@ class MailSchedulerTemplate(BaseTemplate):
                 ctx.db.add(SentRecord(agent_id=ctx.agent_id, target=recipient,
                                       subject=subject, status="failed", detail=str(e)))
                 ctx.log("send_failed", to=recipient, error=str(e))
+                # 오류 알림용: 원래 보내려던 메일 원문(미수집 데이터는 <데이터 미수집> 표시).
+                failures.append({
+                    "error": str(e), "to": recipient, "cc": cc,
+                    "subject": eb.render(subject_tmpl, row, today, mark_missing=True).strip() or "(제목 없음)",
+                    "body": eb.render(body_tmpl, row, today, mark_missing=True),
+                })
 
         await ctx.db.commit()
+
+        # 발송 실패가 있으면 오류 알림 메일 발송(기본 수신: 발신자 본인).
+        if failures and not ctx.dry_run:
+            await self._send_alert(ctx, sender, cfg.get("alert_email"), failures)
+
         return RunResult(ok=failed == 0, stats={
             "total": len(rows), "targets": len(targets),
             "sent": sent, "failed": failed, "dry_run": ctx.dry_run,
         })
+
+    async def _send_alert(self, ctx: RunContext, sender: str, alert_email, failures: list[dict]) -> None:
+        """발송 실패 요약을 오류 메시지 + 보내려던 메일 원문과 함께 알림 메일로 전송."""
+        alert_to = (alert_email or "").strip() or sender
+        if not alert_to:
+            return
+        parts = [f"메일 자동 발송 중 {len(failures)}건이 실패했습니다.", ""]
+        for i, f in enumerate(failures, 1):
+            cc_line = f" / 참조: {f['cc']}" if f.get("cc") else ""
+            parts += [
+                f"[{i}] 수신자: {f['to']}{cc_line}",
+                f"오류: {f['error']}",
+                "── 보내려던 메일 ──",
+                f"제목: {f['subject']}",
+                "본문:",
+                f["body"],
+                "",
+                "─" * 20,
+                "",
+            ]
+        body = "\n".join(parts)
+        try:
+            await ctx.graph.send_mail(sender, alert_to, "[자동 발송 오류] 발송 실패 알림", body)
+            ctx.log("alert_sent", to=alert_to, failures=len(failures))
+        except Exception as e:  # noqa: BLE001
+            ctx.log("alert_failed", to=alert_to, error=str(e))

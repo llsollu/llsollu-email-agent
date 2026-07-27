@@ -90,6 +90,7 @@ export function Scheduler({ agent }: { agent: AgentInfo }) {
           <Kv k="발신자" v={String(cfg.mail_sender ?? '-')} />
           <Kv k="수신자" v={String(cfg.recipient_email ?? '-')} />
           {cc && <Kv k="참조" v={cc} />}
+          <Kv k="오류시 알림" v={String(cfg.alert_email || cfg.mail_sender || '-')} />
           <Kv k="발송기준일" v={dateCol ? `첨부 파일 내 데이터 - ${dateCol}` : '지정 안 함 (주기마다 전체 발송)'} />
         </Section>
 

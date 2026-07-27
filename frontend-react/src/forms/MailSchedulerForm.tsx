@@ -28,6 +28,7 @@ export function MailSchedulerForm({
   const [fileUrl, setFileUrl] = useState(String(c.sharepoint_file_url ?? ''))
   const [recipient, setRecipient] = useState(String(c.recipient_email ?? ''))
   const [cc, setCc] = useState(String(c.cc_email ?? ''))
+  const [alertEmail, setAlertEmail] = useState(String(c.alert_email ?? senderEmail))
   const [subject, setSubject] = useState(String(c.subject_template ?? ''))
   const [body, setBody] = useState(String(c.body_template ?? ''))
   const [dateColumn, setDateColumn] = useState(String(c.date_column ?? ''))
@@ -87,7 +88,7 @@ export function MailSchedulerForm({
       mail_sender: senderEmail,
       recipient_email: recipient.trim(),
       cc_email: cc.trim(),
-      alert_email: senderEmail,
+      alert_email: alertEmail.trim() || senderEmail,
       date_column: dateColumn,
       subject_template: subject,
       body_template: body,
@@ -143,6 +144,7 @@ export function MailSchedulerForm({
       <Field label="수신자 이메일 (쉼표로 여러 명)"><input className={inp} value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="a@llsollu.com, b@llsollu.com" /></Field>
       <Field label="참조 이메일 (쉼표로 여러 명, 선택)"><input className={inp} value={cc} onChange={(e) => setCc(e.target.value)} placeholder="cc@llsollu.com" /></Field>
       <Field label="참조 파일 URL (엑셀 표 형식, 선택)"><input className={inp} value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="SharePoint 공유 xlsx 링크 (없으면 데이터 없이 발송)" /></Field>
+      <Field label="오류 알림 이메일 (발송 실패 시 알림, 기본: 본인)"><input className={inp} value={alertEmail} onChange={(e) => setAlertEmail(e.target.value)} placeholder={senderEmail || 'alert@llsollu.com'} /></Field>
       <div className="flex items-center gap-1.5 pt-1 text-[13px] font-medium text-muted">
         <Send size={15} /> 발신 계정: {senderEmail || '본인 계정'} (본인 계정으로 발송)
       </div>

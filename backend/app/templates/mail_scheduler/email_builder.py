@@ -34,9 +34,15 @@ def _month_column_value(row: dict[str, str], month: int) -> str:
     return ""
 
 
-def render(template: str | None, row: dict[str, str], today: date) -> str:
+MISSING = "<데이터 미수집>"
+
+
+def render(template: str | None, row: dict[str, str], today: date, mark_missing: bool = False) -> str:
+    """{{토큰}} 치환. mark_missing=True 면 값이 없는 데이터 토큰을 '<데이터 미수집>'으로 표시.
+    (실제 발송은 기본값=빈 문자열, 오류 알림 미리보기는 mark_missing=True 로 사용)"""
     if not template:
         return ""
+    miss = MISSING if mark_missing else ""
 
     def repl(m: re.Match) -> str:
         key = m.group(1).strip()
@@ -45,8 +51,9 @@ def render(template: str | None, row: dict[str, str], today: date) -> str:
         if key in MONTH_NUM_TOKENS:
             return str(today.month)
         if key in MONTH_COL_TOKENS:
-            return _month_column_value(row, today.month)
-        return row.get(key, "")
+            return _month_column_value(row, today.month) or miss
+        val = row.get(key, "")
+        return val if val != "" else miss
 
     return _TOKEN.sub(repl, template)
 
