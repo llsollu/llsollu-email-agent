@@ -147,7 +147,7 @@ export function Kanban({ agent }: { agent: AgentInfo }) {
               />
             ))}
           </div>
-          <DragOverlay>
+          <DragOverlay dropAnimation={null}>
             {dragged && <CardBody p={dragged} titleField={titleField} issueLabels={issueLabels} dragging />}
           </DragOverlay>
         </DndContext>
