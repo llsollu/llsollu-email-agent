@@ -24,8 +24,8 @@ export function Dashboard() {
   const q = useQuery({
     queryKey: ['dashboard'],
     queryFn: api.dashboard,
-    // 응답이 집계(수 KB)라 폴링해도 가벼움 → 새 메일 처리 시 자동 반영.
-    refetchInterval: 45_000,
+    // 응답이 집계(수 KB)라 폴링해도 가벼움 → 새 메일 처리 시 자동 반영(60초).
+    refetchInterval: 60_000,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   })

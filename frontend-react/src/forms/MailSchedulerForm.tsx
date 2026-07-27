@@ -140,9 +140,9 @@ export function MailSchedulerForm({
   const basicFields = (
     <div className="space-y-2">
       <Field label="이름"><input className={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 세금계산서 발행 알림" /></Field>
-      <Field label="참조 파일 URL (엑셀 표 형식, 선택)"><input className={inp} value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="SharePoint 공유 xlsx 링크 (없으면 데이터 없이 발송)" /></Field>
       <Field label="수신자 이메일 (쉼표로 여러 명)"><input className={inp} value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="a@llsollu.com, b@llsollu.com" /></Field>
       <Field label="참조 이메일 (쉼표로 여러 명, 선택)"><input className={inp} value={cc} onChange={(e) => setCc(e.target.value)} placeholder="cc@llsollu.com" /></Field>
+      <Field label="참조 파일 URL (엑셀 표 형식, 선택)"><input className={inp} value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="SharePoint 공유 xlsx 링크 (없으면 데이터 없이 발송)" /></Field>
       <div className="flex items-center gap-1.5 pt-1 text-[13px] font-medium text-muted">
         <Send size={15} /> 발신 계정: {senderEmail || '본인 계정'} (본인 계정으로 발송)
       </div>
