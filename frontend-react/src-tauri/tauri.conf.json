@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "LLSOLLU Email Agent",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "com.llsollu.emailagent",
   "build": {
     "frontendDist": "../dist",
@@ -13,9 +13,9 @@
     "windows": [
       {
         "title": "LLSOLLU Email Agent",
-        "width": 1280,
+        "width": 1568,
         "height": 800,
-        "minWidth": 960,
+        "minWidth": 1120,
         "minHeight": 640,
         "resizable": true,
         "fullscreen": false
